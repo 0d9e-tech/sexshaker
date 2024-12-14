@@ -1,7 +1,20 @@
 import { createSignal } from 'solid-js'
 import './App.css'
 
-function App() {
+export function App() {
+    if ('Accelerometer' in window) {
+        return (
+            <Fapper />
+        )
+    }
+    else {
+        return (
+            <p>Your browser does not support the accelerometer API.</p>
+        )
+    }
+}
+
+function Fapper() {
     const [count, setCount] = createSignal(0);
     let fapping = false;
 
@@ -31,5 +44,3 @@ function App() {
         </div>
     );
 }
-
-export default App

@@ -40,7 +40,7 @@ def load_events():
     with open('events.json') as f:
         for line in f:
             ev = json.loads(line)
-            do_event(ev)
+            do_event_no_save(ev)
 
 
 @sio.event

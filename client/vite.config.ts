@@ -5,7 +5,7 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 export default defineConfig({
     plugins: [
         solid(),
-        // basicSsl(),
+        basicSsl(),
     ],
     server: {
         proxy: {

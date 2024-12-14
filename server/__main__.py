@@ -10,7 +10,7 @@ sio = socketio.AsyncServer(cors_allowed_origins=[
     'http://localhost:5173',
     'https://localhost:5173',
     'https://sexshaker.cz',
-])
+], async_mode='aiohttp')
 app = web.Application()
 sio.attach(app)
 
@@ -56,11 +56,14 @@ def get_leaderboard():
     ], key=lambda x: x['length'])
 
 
+async def background_taks(app):
+    asyncio.create_task(broadcast_leaderboard())
+    yield
+
 async def broadcast_leaderboard():
     while True:
-        print("broadcasted")
-        await sio.emit('leaderboard', get_leaderboard())
         await sio.sleep(10)
+        await sio.emit('leaderboard', get_leaderboard())
 
 async def send_current_state(sid):
     await sio.emit('leaderboard', get_leaderboard(), to=sid)
@@ -96,5 +99,5 @@ async def disconnect(sid):
 
 if __name__ == '__main__':
     load_events()    
-    asyncio.run(broadcast_leaderboard())
+    app.cleanup_ctx.append(background_taks)
     web.run_app(app)

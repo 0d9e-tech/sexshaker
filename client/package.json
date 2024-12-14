@@ -11,6 +11,7 @@
     "dependencies": {
         "@types/w3c-generic-sensor": "^1.0.10",
         "@vitejs/plugin-basic-ssl": "^1.2.0",
+        "socketio": "^1.0.0",
         "solid-js": "^1.9.3"
     },
     "devDependencies": {

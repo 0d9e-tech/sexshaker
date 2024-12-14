@@ -1,24 +1,24 @@
-import { createSignal } from 'solid-js'
+import { createSignal, onCleanup } from 'solid-js';
+import { io } from 'socket.io-client';
 
 export function App() {
-    if (!('Accelerometer' in window)) {
-        return (
-            <Fapper />
-        )
-    }
-    else {
+    if ('Accelerometer' in window) {
+        return <Fapper />;
+    } else {
         return (
             <div class='bg-zinc-800 w-full min-h-screen flex flex-col gap-4 justify-center items-center'>
                 <p class='text-slate-300 text-4xl'>Your browser does not support the accelerometer API.</p>
                 <p class='text-slate-300 text-4xl'>Use your mobile device.</p>
             </div>
-        )
+        );
     }
 }
 
 function Fapper() {
     const [count, setCount] = createSignal(0);
     let fapping = false;
+
+    const socket = io('/api');
 
     if ('Accelerometer' in window) {
         const acl = new Accelerometer({ frequency: 60 });
@@ -28,26 +28,29 @@ function Fapper() {
 
             if (!fapping && acl.y > 12) {
                 fapping = true;
-                setCount(count() + 1);
+                setCount((prev) => {
+                    const newCount = prev + 1;
+                    socket.emit('fap');
+
+                    return newCount;
+                });
             } else if (fapping && acl.y < 12) {
                 fapping = false;
             }
         });
 
         acl.start();
+
+        onCleanup(() => {
+            acl.stop();
+        });
     }
 
     const leaderboard = [
-        {
-            'name': 'RADEK',
-            'length': 300
-        },
-        {
-            'name': 'Kubik',
-            'length': 200,
-        }
+        { name: 'RADEK', length: 300 },
+        { name: 'Kubik', length: 200 },
     ];
-    
+
     return (
         <div class='bg-zinc-800 w-full min-h-screen flex flex-col text-slate-300'>
             <div class='mx-auto mt-5'>
@@ -56,7 +59,7 @@ function Fapper() {
             </div>
             <div class='rounded-xl bg-zinc-900 p-3 my-5 mx-4'>
                 <table class="w-full text-left">
-                    {leaderboard.map(u => (
+                    {leaderboard.map((u) => (
                         <tr class="border-b border-zinc-700">
                             <td class="p-2">{u.name}</td>
                             <td class="p-2 text-right">{u.length}</td>

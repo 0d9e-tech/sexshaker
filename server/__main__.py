@@ -6,6 +6,7 @@ import os
 sio = socketio.AsyncServer(cors_allowed_origins=[
     'http://localhost:5173',
     'https://sexshaker.cz',
+    '*'
 ])
 app = web.Application()
 sio.attach(app)

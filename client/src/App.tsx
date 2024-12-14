@@ -2,6 +2,7 @@ import { createSignal, onCleanup } from 'solid-js';
 import { io } from 'socket.io-client';
 
 export function App() {
+    return <Fapper />;
     if ('Accelerometer' in window) {
         return <Fapper />;
     } else {
@@ -18,7 +19,9 @@ function Fapper() {
     const [count, setCount] = createSignal(0);
     let fapping = false;
 
-    const socket = io('/api');
+    // const socket = io('localhost:8080', { path: 'http://localhost:8080/socket.io', autoConnect: true });
+    const socket = io('http://localhost:8080', { path: '/' });
+    console.log({socket})
 
     if ('Accelerometer' in window) {
         const acl = new Accelerometer({ frequency: 60 });
@@ -66,6 +69,9 @@ function Fapper() {
                         </tr>
                     ))}
                 </table>
+            </div>
+            <div>
+                <button on:click={() => socket.emit('sex', 'amogus????')} class='bg-red-500 text-white px-4 py-2 rounded-xl'>send sex</button>
             </div>
         </div>
     );

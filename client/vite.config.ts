@@ -5,6 +5,15 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 export default defineConfig({
     plugins: [
         solid(),
-        basicSsl(),
+        // basicSsl(),
     ],
+    server: {
+        proxy: {
+            '/api': {
+                target: 'http://localhost:8080',
+                changeOrigin: true,
+                rewrite: (path) => path.replace(/^\/api/, ''),
+            }
+        },
+    },
 });

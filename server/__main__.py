@@ -1,5 +1,6 @@
 from aiohttp import web
 import socketio
+import asyncio
 import json
 import os
 import datetime
@@ -15,13 +16,15 @@ sio.attach(app)
 
 user_scores = {}
 session_context = {}
-
+tasks = []
 
 def do_event_no_save(ev):
+    print(ev)
     match ev['type']:
         case 'sex':
             user_scores[ev['user']] += 1
         case 'register':
+            print("Registered user", ev['user'])
             user_scores[ev['user']] = 0
 
 
@@ -45,8 +48,25 @@ def load_events():
             do_event_no_save(ev)
 
 
+def get_leaderboard():
+    print(user_scores)
+    return sorted([
+      { 'name': key, 'length': value }
+      for key, value in user_scores.items()
+    ], key=lambda x: x['length'])
+
+
+async def broadcast_leaderboard():
+    while True:
+        print("broadcasted")
+        await sio.emit('leaderboard', get_leaderboard())
+        await sio.sleep(10)
+
+async def send_current_state(sid):
+    await sio.emit('leaderboard', get_leaderboard(), to=sid)
+
 @sio.event
-def connect(sid, environ, auth):
+async def connect(sid, environ, auth):
     print("connect", sid)
     print("auth", auth)
 
@@ -56,9 +76,10 @@ def connect(sid, environ, auth):
     session_context[sid] = {}
     session_context[sid]['user'] = auth
     do_event({'sid': sid, 'type': 'connect', 'user': session_context[sid]['user'], 'ts': datetime.datetime.now().timestamp()})
+    await send_current_state(sid)
 
 @sio.on('*')
-def any_event(event, sid, data):
+async def any_event(event, sid, data):
     if not sid in session_context:
         print("User not connected, how??")
         return
@@ -67,11 +88,13 @@ def any_event(event, sid, data):
     do_event({**ddata, 'type': event, 'user': session_context[sid]['user'], 'ts': datetime.datetime.now().timestamp()})
 
 @sio.event
-def disconnect(sid):
+async def disconnect(sid):
     print('disconnect ', sid)
     do_event({'sid': sid, 'type': 'disconnect', 'user': session_context[sid]['user'], 'ts': datetime.datetime.now().timestamp()})
     session_context.pop(sid)
 
 
 if __name__ == '__main__':
+    load_events()    
+    asyncio.run(broadcast_leaderboard())
     web.run_app(app)

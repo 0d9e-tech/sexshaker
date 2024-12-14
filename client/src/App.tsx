@@ -20,7 +20,9 @@ function Fapper() {
     let fapping = false;
 
     // const socket = io('localhost:8080', { path: 'http://localhost:8080/socket.io', autoConnect: true });
-    const socket = io('http://localhost:8080');
+    const socket = io('http://localhost:8080', {
+      auth: prompt("name?"),
+    });
     console.log({socket})
 
     if ('Accelerometer' in window) {

@@ -2,11 +2,13 @@ from aiohttp import web
 import socketio
 import json
 import os
+import datetime
 
 sio = socketio.AsyncServer(cors_allowed_origins=[
-    'http://localhost:5173',
-    'https://sexshaker.cz',
     '*'
+    'http://localhost:5173',
+    'https://localhost:5173',
+    'https://sexshaker.cz',
 ])
 app = web.Application()
 sio.attach(app)
@@ -30,7 +32,7 @@ def do_event(ev):
 
 def save_event(ev):
     with open('events.json', 'a') as f:
-        f.write(json.dumps(ev))
+        f.write(json.dumps(ev) + '\n')
 
 
 def load_events():
@@ -45,31 +47,29 @@ def load_events():
 
 @sio.event
 def connect(sid, environ, auth):
-    print("connect ", sid)
-    print("auth ", auth)
+    print("connect", sid)
+    print("auth", auth)
 
-    if not user_scores[auth]:
-        do_event({'type': 'register', 'user': auth})
+    if auth not in user_scores:
+        do_event({'type': 'register', 'user': auth, 'ts': datetime.datetime.now().timestamp()})
 
     session_context[sid] = {}
     session_context[sid]['user'] = auth
+    do_event({'sid': sid, 'type': 'connect', 'user': session_context[sid]['user'], 'ts': datetime.datetime.now().timestamp()})
 
-
-@sio.event
-async def sex(sid, data):
-    print("sex ", data)
-
+@sio.on('*')
+def any_event(event, sid, data):
     if not sid in session_context:
-        print("User not connected")
+        print("User not connected, how??")
         return
 
-    do_event({'type': 'sex', 'user': session_context[sid]['user']})
-
+    ddata = data if type(data) is dict else {}
+    do_event({**ddata, 'type': event, 'user': session_context[sid]['user'], 'ts': datetime.datetime.now().timestamp()})
 
 @sio.event
 def disconnect(sid):
     print('disconnect ', sid)
-
+    do_event({'sid': sid, 'type': 'disconnect', 'user': session_context[sid]['user'], 'ts': datetime.datetime.now().timestamp()})
     session_context.pop(sid)
 
 

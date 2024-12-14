@@ -6,8 +6,9 @@ app = web.Application()
 sio.attach(app)
 
 @sio.event
-def connect(sid, environ):
+def connect(sid, environ, auth):
     print("connect ", sid)
+    print("auth ", auth)
 
 @sio.event
 async def sex(sid, data):

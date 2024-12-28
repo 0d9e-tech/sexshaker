@@ -8,7 +8,10 @@ interface User {
 }
 
 export function App() {
-    return <Game />;
+    if (import.meta.env.MODE === 'development') {
+        return <Game />;
+    }
+
     if ('Accelerometer' in window) {
         return <Game />;
     } else {
@@ -26,11 +29,11 @@ function Game() {
     const [isAuthenticated, setIsAuthenticated] = createSignal(false);
     const [count, setCount] = createSignal(0);
     const [name, setName] = createSignal('');
+    const [debugMessage, setDebugMessage] = createSignal('');
     // const [leaderboard, setLeaderboard] = createSignal([]);
     const [error, setError] = createSignal('');
-    let isShaking = false;
-    let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
 
+    let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
     const connectSocket = (gameToken: string) => {
         socket = io(import.meta.env.VITE_SOCKET_URL, {
             auth: { gameToken },
@@ -39,15 +42,15 @@ function Game() {
         socket.on('auth_error', (message: string) => {
             setError(message);
             setIsAuthenticated(false);
-            localStorage.removeItem('gameToken'); // Clear the invalid token
+            localStorage.removeItem('gameToken');
         });
 
         socket.on('user_data', (user: User) => {
             setName(user.name);
             setCount(user.score);
-            setIsAuthenticated(true); // Successfully authenticated
-            setError(''); // Clear error on success
-            localStorage.setItem('gameToken', gameToken); // Store the validated token
+            setIsAuthenticated(true);
+            setError('');
+            localStorage.setItem('gameToken', gameToken);
         });
 
         // socket.on('leaderboard', setLeaderboard);
@@ -59,18 +62,18 @@ function Game() {
             setError('Game token cannot be empty.');
             return;
         }
-        setError(''); // Clear previous errors
+        setError(''); 
         connectSocket(token);
     };
 
-    // Attempt to connect if a token is already stored in local storage
     const storedToken = localStorage.getItem('gameToken');
     if (storedToken && !isAuthenticated()) {
         setGameToken(storedToken);
         connectSocket(storedToken);
     }
 
-    if ('Accelerometer' in window && isAuthenticated()) {
+    if (import.meta.env.MODE !== 'development') {
+        let isShaking = false;
         const accelerometer = new Accelerometer({ frequency: 60 });
 
         accelerometer.addEventListener('reading', () => {
@@ -78,6 +81,7 @@ function Game() {
                 isShaking = true;
                 setCount((prevCount) => {
                     const newCount = prevCount + 1;
+                    setDebugMessage(`fapped! ${newCount}`)
                     socket.emit('fap');
                     return newCount;
                 });
@@ -87,6 +91,7 @@ function Game() {
         });
 
         accelerometer.start();
+        setDebugMessage(`${accelerometer.activated}, ${accelerometer.hasReading}`)
 
         onCleanup(() => {
             accelerometer.stop();
@@ -118,6 +123,7 @@ function Game() {
                     <div class="mx-auto mt-5">
                         <p>user: {name()}</p>
                         <p>sex count</p>
+                        <p><b>{debugMessage()}</b></p>
                         <p class="text-center text-4xl">{count()}</p>
                     </div>
                     <div class="rounded-xl bg-zinc-900 p-3 my-5 mx-4">
@@ -132,14 +138,17 @@ function Game() {
                             </tbody>
                         </table>
                     </div>
-                    <div class="flex justify-center">
-                        <button
-                            onClick={() => socket.emit('fap')}
-                            class="bg-red-500 text-white px-4 py-2 rounded-xl"
-                        >
-                            send sex
-                        </button>
-                    </div>
+
+                    { import.meta.env.MODE === 'development' && (
+                        <div class="flex justify-center">
+                            <button
+                                onClick={() => socket.emit('fap')}
+                                class="bg-red-500 text-white px-4 py-2 rounded-xl"
+                            >
+                                send sex
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

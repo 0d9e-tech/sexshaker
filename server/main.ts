@@ -17,6 +17,10 @@ let users: { [gameToken: string]: User } = {
         'name': 'Kubik',
         'score': 300,
     },
+    'mobile': {
+        'name': 'mobile',
+        'score': 10,
+    }
 };
 
 let server;
@@ -58,7 +62,8 @@ io.on('connection', (socket) => {
 
     // Set up event listeners for authenticated users
     socket.on('fap', () => {
-        console.log(`${user.name} fapped!`);
+        users[gameToken].score += 1;
+        socket.emit('user_data', user);
     });
 
     socket.on('disconnect', () => {

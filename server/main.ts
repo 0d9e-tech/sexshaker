@@ -8,13 +8,51 @@ import fs from 'fs';
 
 const PORT = 8080;
 
-// Users database
-let users: Map<string, User> = new Map([
-    ['lmao', { name: 'Kubik', score: 0, isLive: false }],
-    ['nope', { name: 'nikdo (test)', score: 412435, isLive: true}],
-    ['hehe', { name: 'offlinetypek (test)', score: 41212435, isLive: false}],
-    ['marekmavelkypero', { name: 'Marek', score: 0, isLive: false }],
-]);
+const storagePath = path.join(__dirname, 'storage.json');
+
+const defaultUser: User = {
+    name: '',
+    score: 0,
+    faps: 0,
+    isLive: false,
+    isAdmin: false,
+};
+
+const ensureUserFields = (user: Partial<User>): User => ({
+    name: user.name || defaultUser.name,
+    score: user.score || defaultUser.score,
+    faps: user.faps || defaultUser.faps,
+    isLive: user.isLive || defaultUser.isLive,
+    isAdmin: user.isAdmin || defaultUser.isAdmin,
+});
+
+const initializeUsers = (): Map<string, User> => {
+    try {
+        const data = fs.readFileSync(storagePath, 'utf8');
+        const parsed: Record<string, Partial<User>> = JSON.parse(data);
+        
+        const userEntries: [string, User][] = Object.entries(parsed).map(([key, value]) => [
+            key,
+            ensureUserFields(value),
+        ]);
+
+        return new Map<string, User>(userEntries);
+    } catch (error) {
+        console.error('Failed to load storage.json:', error);
+        return new Map<string, User>();
+    }
+};
+
+const saveUsers = (users: Map<string, User>) => {
+    try {
+        const usersObject = Object.fromEntries(users);
+        fs.writeFileSync(storagePath, JSON.stringify(usersObject, null, 2), 'utf8');
+    } catch (error) {
+        console.error('Failed to save storage.json:', error);
+    }
+};
+
+const users: Map<string, User> = initializeUsers();
 
 let server;
 if (process.env.NODE_ENV === 'production') {
@@ -29,7 +67,6 @@ if (process.env.NODE_ENV === 'production') {
     server = createServer(httpsOptions);
 }
 
-// Create Socket.IO server
 const io = new Server(server, {
     cors: {
         origin: '*',
@@ -45,6 +82,7 @@ const updateLeaderboard = () => {
 };
 
 setInterval(() => updateLeaderboard(), 5000);
+setInterval(() => saveUsers(users), 5000);  // TODO: make this better ig
 
 io.on('connection', (socket) => {
     const gameToken = socket.handshake.auth.gameToken || `User-${socket.id}`;
@@ -80,10 +118,10 @@ io.on('connection', (socket) => {
 
     // console.log(`live users: ${liveUsers.entries().toArray().map(x => x[0]).join(', ')}`);
 
-    // Set up event listeners for authenticated users
     socket.on('fap', () => {
         user.score += 1;
-        socket.emit('user_data', user);
+
+        socket.emit('count', user.score);
     });
 
     socket.on('disconnect', () => {

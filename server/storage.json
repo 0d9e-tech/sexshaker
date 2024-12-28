@@ -1,0 +1,16 @@
+{
+  "kub": {
+    "name": "Kubik",
+    "score": 54,
+    "faps": 0,
+    "isLive": true,
+    "isAdmin": true
+  },
+  "test": {
+    "name": "test",
+    "score": 0,
+    "faps": 0,
+    "isLive": false,
+    "isAdmin": false
+  }
+}

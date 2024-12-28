@@ -12,7 +12,7 @@ export function App() {
         return <Game />;
     } else {
         return (
-            <div class='bg-zinc-800 w-full min-h-screen flex flex-col gap-4 justify-center items-center'>
+            <div class='bg-zinc-800 w-full min-h-screen flex flex-col gap-4 justify-center items-center text-center'>
                 <p class='text-slate-300 text-4xl'>Your browser does not support the accelerometer API.</p>
                 <p class='text-slate-300 text-4xl'>Use your mobile device.</p>
             </div>

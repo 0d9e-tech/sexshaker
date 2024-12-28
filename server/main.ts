@@ -11,8 +11,9 @@ const PORT = 8080;
 // Users database
 let users: Map<string, User> = new Map([
     ['lmao', { name: 'Kubik', score: 0, isLive: false }],
-    ['nope', { name: 'Nikdo', score: 412435, isLive: true}],
-    ['hehe', { name: 'offlinetypek', score: 41212435, isLive: false}]
+    ['nope', { name: 'nikdo (test)', score: 412435, isLive: true}],
+    ['hehe', { name: 'offlinetypek (test)', score: 41212435, isLive: false}],
+    ['marekmavelkypero', { name: 'Marek', score: 0, isLive: false }],
 ]);
 
 let server;

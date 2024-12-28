@@ -1,5 +1,6 @@
 import { Server } from 'socket.io';
 import { createServer } from 'https';
+import { createServer as createHttpServer } from 'http';
 import { readFileSync } from 'fs';
 
 interface User {
@@ -10,35 +11,39 @@ interface User {
 const PORT = 8080;
 const leaderboard: User[] = [];
 
-// Load the SSL certificates
-// These will be created using mkcert (instructions below)
-const httpsOptions = {
-    key: readFileSync('localhost-key.pem'),
-    cert: readFileSync('localhost.pem')
-};
-
-// Create HTTPS server with our trusted certificates
-const httpsServer = createServer(httpsOptions);
-
-// Create Socket.IO server
-const io = new Server(httpsServer, {
-    cors: {
-        origin: '*',
-        methods: ['GET', 'POST']
-    },
-});
-
+// Users database
 let users: { [gameToken: string]: User } = {
     'lmao': {
         'name': 'Kubik',
         'score': 300,
-    }
+    },
+};
+
+let server;
+if (process.env.NODE_ENV === 'production') {
+    console.log('Starting in production mode: using HTTP');
+    server = createHttpServer();
+} else {
+    console.log('Starting in development mode: using HTTPS');
+    const httpsOptions = {
+        key: readFileSync('localhost-key.pem'),
+        cert: readFileSync('localhost.pem'),
+    };
+    server = createServer(httpsOptions);
 }
+
+// Create Socket.IO server
+const io = new Server(server, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST'],
+    },
+});
 
 io.on('connection', (socket) => {
     const gameToken = socket.handshake.auth.gameToken || `User-${socket.id}`;
-    console.log(`connection attempt with code ${gameToken}`);
-    
+    console.log(`Connection attempt with code ${gameToken}`);
+
     let user: User | undefined = undefined;
     if (gameToken in users) {
         user = users[gameToken];
@@ -57,11 +62,10 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        console.log(`user with ${gameToken} disconnected`);
+        console.log(`User with ${gameToken} disconnected`);
     });
 });
 
-
-httpsServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`Secure server running on https://0.0.0.0:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on ${process.env.NODE_ENV === 'production' ? 'http' : 'https'}://0.0.0.0:${PORT}`);
 });

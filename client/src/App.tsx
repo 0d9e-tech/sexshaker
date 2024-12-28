@@ -1,11 +1,7 @@
 import { createSignal, onCleanup } from 'solid-js';
 import { io, Socket } from 'socket.io-client';
 import { DefaultEventsMap } from '@socket.io/component-emitter';
-
-interface User {
-    name: string;
-    score: number;
-}
+import { type User } from '../../types';
 
 export function App() {
     if (import.meta.env.MODE === 'development') {
@@ -30,7 +26,7 @@ function Game() {
     const [count, setCount] = createSignal(0);
     const [name, setName] = createSignal('');
     const [debugMessage, setDebugMessage] = createSignal('');
-    // const [leaderboard, setLeaderboard] = createSignal([]);
+    const [leaderboard, setLeaderboard] = createSignal<User[]>([]);
     const [error, setError] = createSignal('');
 
     let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
@@ -53,7 +49,7 @@ function Game() {
             localStorage.setItem('gameToken', gameToken);
         });
 
-        // socket.on('leaderboard', setLeaderboard);
+        socket.on('leaderboard', setLeaderboard);
     };
 
     const handleLogin = () => {
@@ -62,7 +58,7 @@ function Game() {
             setError('Game token cannot be empty.');
             return;
         }
-        setError(''); 
+        setError('');
         connectSocket(token);
     };
 
@@ -129,17 +125,24 @@ function Game() {
                     <div class="rounded-xl bg-zinc-900 p-3 my-5 mx-4">
                         <table class="w-full text-left">
                             <tbody>
-                                {/* {leaderboard().map((user) => (
+                                {leaderboard().map((user) => (
                                     <tr class="border-b border-zinc-700">
+                                        <td class="px-1 py-2 text-center">
+                                            <span
+                                                class={`inline-block w-3 h-3 rounded-full ${user.isLive ? 'bg-green-500' : 'bg-gray-500'
+                                                    }`}
+                                                aria-label={user.isLive ? 'Online' : 'Offline'}
+                                            ></span>
+                                        </td>
                                         <td class="p-2">{user.name}</td>
                                         <td class="p-2 text-right">{user.score}</td>
                                     </tr>
-                                ))} */}
+                                ))}
                             </tbody>
                         </table>
                     </div>
 
-                    { import.meta.env.MODE === 'development' && (
+                    {import.meta.env.MODE === 'development' && (
                         <div class="flex justify-center">
                             <button
                                 onClick={() => socket.emit('fap')}

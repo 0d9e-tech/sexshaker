@@ -2,28 +2,18 @@ import { Server } from 'socket.io';
 import { createServer } from 'https';
 import { createServer as createHttpServer } from 'http';
 import { readFileSync } from 'fs';
-
-interface User {
-    name: string;
-    score: number;
-}
+import { type User } from '../types';
+import path from 'path';
+import fs from 'fs';
 
 const PORT = 8080;
-const leaderboard: User[] = [];
 
 // Users database
-let users: { [gameToken: string]: User } = {
-    'lmao': {
-        'name': 'Kubik',
-        'score': 300,
-    },
-    'mobile': {
-        'name': 'mobile',
-        'score': 10,
-    }
-};
-
-let liveUsers = new Set<string>();
+let users: Map<string, User> = new Map([
+    ['lmao', { name: 'Kubik', score: 0, isLive: false }],
+    ['nope', { name: 'Nikdo', score: 412435, isLive: true}],
+    ['hehe', { name: 'offlinetypek', score: 41212435, isLive: false}]
+]);
 
 let server;
 if (process.env.NODE_ENV === 'production') {
@@ -46,46 +36,58 @@ const io = new Server(server, {
     },
 });
 
+const updateLeaderboard = () => {
+    const sorted = Array.from(users.entries())
+        .map(([_, user]) => user)
+        .sort((a, b) => b.score - a.score);
+    io.emit('leaderboard', sorted);
+};
+
+setInterval(() => updateLeaderboard(), 5000);
+
 io.on('connection', (socket) => {
     const gameToken = socket.handshake.auth.gameToken || `User-${socket.id}`;
     console.log(`Connection attempt with code ${gameToken}`);
 
-    if (liveUsers.has(gameToken)) {
-        console.log(`${gameToken} already active`);
-        socket.emit('auth_error', 'You are already logged in on another device.');
-        return;
-    }
-
     let user: User | undefined = undefined;
-    if (gameToken in users) {
-        user = users[gameToken];
+    if (users.has(gameToken)) {
+        user = users.get(gameToken);
+
+        if (!user) {
+            socket.emit('auth_error', 'Něco se posralo, prosím napiš Kubíkovi.');
+            return;
+        }
+
         console.log(`${gameToken} is ${user.name} with ${user.score} points`);
     } else {
         console.log(`${gameToken} is invalid, rejecting connection`);
-        socket.emit('auth_error', 'Invalid game token');
+        socket.emit('auth_error', 'Naplatný kódík.');
+        return;
+    }
+
+    if (user?.isLive) {
+        console.log(`${gameToken} already active, closing connection`);
+        socket.emit('auth_error', 'Už jsi přihlášený na jiném zařízení!');
         return;
     }
 
     // AUTHENTICATED
 
-    liveUsers.add(gameToken);
     socket.emit('user_data', user);
+    user.isLive = true;
+    updateLeaderboard();
 
-    console.log('live users:')
-    liveUsers.entries().forEach(element => {
-        console.log(element);
-    });
+    // console.log(`live users: ${liveUsers.entries().toArray().map(x => x[0]).join(', ')}`);
 
     // Set up event listeners for authenticated users
     socket.on('fap', () => {
-        users[gameToken].score += 1;
+        user.score += 1;
         socket.emit('user_data', user);
-        console.log(`${users[gameToken].name} fapped!`);
     });
 
     socket.on('disconnect', () => {
-        liveUsers.delete(gameToken);
-        console.log(`User with ${gameToken} disconnected`);
+        user.isLive = false;
+        console.log(`${user.name} disconnected`);
     });
 });
 

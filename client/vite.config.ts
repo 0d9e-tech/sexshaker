@@ -2,18 +2,23 @@ import { defineConfig } from 'vite';
 import solid from 'vite-plugin-solid';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
     plugins: [
         solid(),
-        basicSsl(),
+        ...(mode === 'development' ? [basicSsl()] : []),
     ],
     server: {
         proxy: {
-            '/api': {
+            '/socket.io': {
                 target: 'http://localhost:8080',
+                ws: true,
                 changeOrigin: true,
-                rewrite: (path) => path.replace(/^\/api/, ''),
-            }
+            },
         },
+        https: mode === 'development',
     },
-});
+    build: {
+        outDir: 'dist',
+    },
+    base: mode === 'production' ? '/' : '/',
+}));

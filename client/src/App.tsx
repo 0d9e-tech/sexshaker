@@ -4,17 +4,29 @@ import { DefaultEventsMap } from '@socket.io/component-emitter';
 import { type User } from '../../types';
 import CodeInput from './CodeInput';
 
+const isIOS = () => {
+    return [
+        'iPad Simulator',
+        'iPhone Simulator',
+        'iPod Simulator',
+        'iPad',
+        'iPhone',
+        'iPod'
+    ].includes(navigator.platform)
+    || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+};
+
 export function App() {
     if (import.meta.env.MODE === 'development') {
         return <Game />;
     }
 
-    if ('Accelerometer' in window) {
+    if ('Accelerometer' in window || (window.DeviceMotionEvent && isIOS())) {
         return <Game />;
     } else {
         return (
             <div class='bg-zinc-800 w-full min-h-screen flex flex-col gap-4 justify-center items-center text-center'>
-                <p class='text-slate-300 text-4xl'>Your browser does not support the accelerometer API.</p>
+                <p class='text-slate-300 text-4xl'>Your browser does not support motion detection.</p>
                 <p class='text-slate-300 text-4xl'>Use your mobile device.</p>
             </div>
         );
@@ -29,8 +41,101 @@ function Game() {
     const [isAdmin, setIsAdmin] = createSignal(false);
     const [leaderboard, setLeaderboard] = createSignal<User[]>([]);
     const [error, setLoginError] = createSignal('');
+    const [auditLogs, setAuditLogs] = createSignal<string[]>([]);
+    const [motionPermission, setMotionPermission] = createSignal<boolean>(false);
 
     let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
+
+    const requestMotionPermission = async () => {
+        if (isIOS()) {
+            // @ts-expect-error - undocumented api, iphones are stupid
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                try {
+                    // @ts-expect-error shut up
+                    const permissionState = await DeviceMotionEvent.requestPermission();
+                    setMotionPermission(permissionState === 'granted');
+                    if (permissionState === 'granted') {
+                        initializeMotionTracking();
+                    }
+                } catch (error) {
+                    console.error('Error requesting motion permission:', error);
+                    setLoginError('Motion permission denied');
+                }
+            } else {
+                setMotionPermission(true);
+                initializeMotionTracking();
+            }
+        } else {
+            setMotionPermission(true);
+            initializeMotionTracking();
+        }
+    };
+
+    const initializeMotionTracking = () => {
+        let isShaking = false;
+    
+        if (!isIOS()) {
+            try {
+                const accelerometer = new Accelerometer({ frequency: 60 });
+                
+                accelerometer.addEventListener('reading', () => {
+                    if (accelerometer.y !== undefined && !isShaking && accelerometer.y > 12) {
+                        isShaking = true;
+                        fap();
+                    } else if (accelerometer.y !== undefined && isShaking && accelerometer.y < 12) {
+                        isShaking = false;
+                    }
+                });
+    
+                accelerometer.start();
+    
+                onCleanup(() => {
+                    accelerometer.stop();
+                });
+            } catch (error) {
+                // Fallback to DeviceMotion API if Accelerometer fails
+                console.log("Falling back to DeviceMotion API");
+                const handleMotion = (event: DeviceMotionEvent) => {
+                    const acceleration = event.accelerationIncludingGravity;
+                    if (acceleration && acceleration.y !== null) {
+                        if (!isShaking && acceleration.y > 12) {
+                            isShaking = true;
+                            fap();
+                        } else if (isShaking && acceleration.y < 12) {
+                            isShaking = false;
+                        }
+                    }
+                };
+    
+                window.addEventListener('devicemotion', handleMotion);
+    
+                onCleanup(() => {
+                    window.removeEventListener('devicemotion', handleMotion);
+                });
+            }
+        } else {
+            const handleMotion = (event: DeviceMotionEvent) => {
+                const acceleration = event.accelerationIncludingGravity;
+                if (acceleration && acceleration.y !== null) {
+                    if (!isShaking && acceleration.y > 12) {
+                        isShaking = true;
+                        fap();
+                    } else if (isShaking && acceleration.y < 12) {
+                        isShaking = false;
+                    }
+                }
+            };
+    
+            window.addEventListener('devicemotion', handleMotion);
+    
+            onCleanup(() => {
+                window.removeEventListener('devicemotion', handleMotion);
+            });
+        }
+    };
+
+    const fap = () => socket.emit('fap');
+
     const connectSocket = (gameToken: string) => {
         socket = io(import.meta.env.VITE_SOCKET_URL, {
             auth: { gameToken },
@@ -52,31 +157,52 @@ function Game() {
 
         socket.on('count', (c: number) => {
             setCount(c);
-        })
+        });
 
         socket.on('leaderboard', setLeaderboard);
+
+        socket.on('audit_log', (log: string) => {
+            appendAuditLog(log);
+        });
+
+        socket.on('audit_log_history', (logs: string[]) => {
+            setAuditLogs(logs);
+        });
     };
 
-    const login = () => {
+    const appendAuditLog = (message: string) => setAuditLogs(prev => [message, ...prev]);
+
+    const login = async () => {
         const token = gameToken();
         if (token.trim() === '') {
             setLoginError('Musíš zadat kódík hlupáčku!');
             return;
         }
         setLoginError('');
-        connectSocket(token);
+        await requestMotionPermission();
+        if (motionPermission()) {
+            connectSocket(token);
+        }
     };
 
     const logout = () => {
         socket.close();
         setIsAuthenticated(false);
-    }
+    };
+
+    const createNewUser = () => {
+        const usernameInput = document.querySelector('#admin input[type="text"]') as HTMLInputElement;
+        if (usernameInput && usernameInput.value.trim() !== '') {
+            socket.emit('new_user', usernameInput.value.trim());
+            usernameInput.value = '';
+        }
+    };
 
     const getRandomInt = (min: number, max: number): number => {
         min = Math.ceil(min);
         max = Math.floor(max);
         return Math.floor(Math.random() * (max - min + 1)) + min;
-    }
+    };
 
     const randomPlaceholder = () => {
         const placeholders = [
@@ -87,37 +213,13 @@ function Game() {
             "ඞඞඞඞඞ",
         ];
 
-        return placeholders[getRandomInt(0, placeholders.length - 1)]
-    }
+        return placeholders[getRandomInt(0, placeholders.length - 1)];
+    };
 
     const storedToken = localStorage.getItem('gameToken');
     if (storedToken && !isAuthenticated()) {
         setGameToken(storedToken);
         connectSocket(storedToken);
-    }
-
-    if (import.meta.env.MODE !== 'development') {
-        let isShaking = false;
-        const accelerometer = new Accelerometer({ frequency: 60 });
-
-        accelerometer.addEventListener('reading', () => {
-            if (accelerometer.y !== undefined && !isShaking && accelerometer.y > 12) {
-                isShaking = true;
-                setCount((prevCount) => {
-                    const newCount = prevCount + 1;
-                    socket.emit('fap');
-                    return newCount;
-                });
-            } else if (accelerometer.y !== undefined && isShaking && accelerometer.y < 12) {
-                isShaking = false;
-            }
-        });
-
-        accelerometer.start();
-
-        onCleanup(() => {
-            accelerometer.stop();
-        });
     }
 
     return (
@@ -158,14 +260,11 @@ function Game() {
                                         <td class="p-2 text-center">{index + 1}</td>
                                         <td class="px-1 py-2 text-center">
                                             <span
-                                                class={`inline-block w-3 h-3 rounded-full ${user.isLive ? 'bg-green-500' : 'bg-gray-500'
-                                                    }`}
+                                                class={`inline-block w-3 h-3 rounded-full ${user.isLive ? 'bg-green-500' : 'bg-gray-500'}`}
                                                 aria-label={user.isLive ? 'Online' : 'Offline'}
                                             ></span>
                                         </td>
-                                        <td
-                                            class={`p-2 ${user.name === name() ? 'font-bold' : ''}`}
-                                        >
+                                        <td class={`p-2 ${user.name === name() ? 'font-bold' : ''}`}>
                                             {user.name}
                                         </td>
                                         <td class="p-2 text-right">{user.score}</td>
@@ -181,13 +280,17 @@ function Game() {
 
                             <div>
                                 <input type="text" placeholder='username' />
-                                <button>create new user</button>
+                                <button onclick={createNewUser}>create new user</button>
                             </div>
 
-                            <div>
+                            <div class='flex flex-col'>
                                 <h2>AUDIT LOG</h2>
-                                <div id='auditlog' class='flex flex-col'>
-
+                                <div class='flex flex-col'>
+                                    {auditLogs().map(log => (
+                                        <p class="text-sm font-mono py-1 border-b border-zinc-700">
+                                            {log}
+                                        </p>
+                                    ))}
                                 </div>
                             </div>
                         </details>}

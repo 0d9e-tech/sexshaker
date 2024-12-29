@@ -5,8 +5,10 @@ import { readFileSync } from 'fs';
 import { type User } from '../types';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 
 const PORT = 8080;
+const MAX_AUDIT_LOGS = 100;
 
 const storagePath = path.join(__dirname, 'storage.json');
 
@@ -16,6 +18,11 @@ const defaultUser: User = {
     faps: 0,
     isLive: false,
     isAdmin: false,
+};
+
+const generateGameToken = (): string => {
+    // Generate a random 6 character string using letters and numbers
+    return crypto.randomBytes(3).toString('hex').toUpperCase();
 };
 
 const ensureUserFields = (user: Partial<User>): User => ({
@@ -33,7 +40,10 @@ const initializeUsers = (): Map<string, User> => {
         
         const userEntries: [string, User][] = Object.entries(parsed).map(([key, value]) => [
             key,
-            ensureUserFields(value),
+            {
+                ...ensureUserFields(value),
+                isLive: false  // Force all users to be offline on server startup
+            }
         ]);
 
         return new Map<string, User>(userEntries);
@@ -50,6 +60,27 @@ const saveUsers = (users: Map<string, User>) => {
     } catch (error) {
         console.error('Failed to save storage.json:', error);
     }
+};
+
+const auditLogs: string[] = [];
+const addAuditLog = (message: string) => {
+    const timestamp = new Date().toLocaleString('cs-CZ', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+    
+    const logWithTimestamp = `${timestamp} - ${message}`;
+    auditLogs.unshift(logWithTimestamp);  // Add to beginning
+    
+    if (auditLogs.length > MAX_AUDIT_LOGS) {
+        auditLogs.pop();  // Remove oldest log if we exceed max
+    }
+    
+    // Emit to all connected clients
+    io.emit('audit_log', logWithTimestamp);
 };
 
 const users: Map<string, User> = initializeUsers();
@@ -116,17 +147,40 @@ io.on('connection', (socket) => {
     user.isLive = true;
     updateLeaderboard();
 
-    // console.log(`live users: ${liveUsers.entries().toArray().map(x => x[0]).join(', ')}`);
+    if (user.isAdmin) {
+        socket.emit('audit_log_history', auditLogs);
+    }
 
     socket.on('fap', () => {
         user.score += 1;
-
         socket.emit('count', user.score);
     });
 
     socket.on('disconnect', () => {
         user.isLive = false;
         console.log(`${user.name} disconnected`);
+    });
+
+    socket.on('new_user', (username: string) => {
+        if (!user.isAdmin) return;
+
+        let newGameToken: string;
+        do {
+            newGameToken = generateGameToken();
+        } while (users.has(newGameToken));
+
+        const newUser: User = {
+            ...defaultUser,
+            name: username
+        };
+
+        users.set(newGameToken, newUser);
+
+        // Use the new audit log function
+        addAuditLog(`Admin ${user.name} created new user "${username}" with game token ${newGameToken}`);
+
+        saveUsers(users);
+        updateLeaderboard();
     });
 });
 

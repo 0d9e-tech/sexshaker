@@ -6,7 +6,7 @@ interface GameInputProps {
     randomPlaceholder: () => string;
 }
 
-const GameInput = (props: GameInputProps) => {
+const CodeInput = (props: GameInputProps) => {
     return (
         <div class="flex flex-col justify-center items-center h-full gap-4">
             <h1 class="text-4xl mb-4 mt-8 text-center font-bold">SEXSHAKER</h1>
@@ -29,4 +29,4 @@ const GameInput = (props: GameInputProps) => {
     );
 };
 
-export default GameInput;
+export default CodeInput;

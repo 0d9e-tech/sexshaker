@@ -63,7 +63,7 @@ const saveUsers = (users: Map<string, User>) => {
 };
 
 const auditLogs: string[] = [];
-const addAuditLog = (message: string) => {
+const addAuditLog = (message: string, admin_name: string) => {
     const timestamp = new Date().toLocaleString('cs-CZ', {
         day: '2-digit',
         month: '2-digit',
@@ -72,15 +72,15 @@ const addAuditLog = (message: string) => {
         minute: '2-digit',
     });
     
-    const logWithTimestamp = `${timestamp} - ${message}`;
-    auditLogs.unshift(logWithTimestamp);  // Add to beginning
+    const logWithTimestamp = `${timestamp} ${admin_name} - ${message}`;
+    auditLogs.unshift(logWithTimestamp);
     
     if (auditLogs.length > MAX_AUDIT_LOGS) {
-        auditLogs.pop();  // Remove oldest log if we exceed max
+        auditLogs.pop();
     }
     
-    // Emit to all connected clients
     io.emit('audit_log', logWithTimestamp);
+    console.log(logWithTimestamp);
 };
 
 const users: Map<string, User> = initializeUsers();
@@ -164,6 +164,11 @@ io.on('connection', (socket) => {
     socket.on('new_user', (username: string) => {
         if (!user.isAdmin) return;
 
+        if (Array.from(users.values()).find(x => x.name == username) !== undefined) {
+            addAuditLog(`User ${username} cannot be created (username is already taken)`, user.name);
+            return;
+        }
+
         let newGameToken: string;
         do {
             newGameToken = generateGameToken();
@@ -177,7 +182,7 @@ io.on('connection', (socket) => {
         users.set(newGameToken, newUser);
 
         // Use the new audit log function
-        addAuditLog(`Admin ${user.name} created new user "${username}" with game token ${newGameToken}`);
+        addAuditLog(`Created new user "${username}" with game token ${newGameToken}`, user.name);
 
         saveUsers(users);
         updateLeaderboard();

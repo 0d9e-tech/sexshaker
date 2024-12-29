@@ -8,7 +8,7 @@
     }
 
     #admin div {
-        @apply my-3 flex flex-row gap-2
+        @apply my-3 flex gap-2
     }
 
     #admin button {

@@ -13,7 +13,7 @@ const isIOS = () => {
         'iPhone',
         'iPod'
     ].includes(navigator.platform)
-    || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+        || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
 };
 
 export function App() {
@@ -59,7 +59,7 @@ function Game() {
                     }
                 } catch (error) {
                     console.error('Error requesting motion permission:', error);
-                    setLoginError('Motion permission denied');
+                    setLoginError('Je potřeba povolit přístup ke gyroskopu!');
                 }
             } else {
                 setMotionPermission(true);
@@ -73,11 +73,11 @@ function Game() {
 
     const initializeMotionTracking = () => {
         let isShaking = false;
-    
+
         if (!isIOS()) {
             try {
                 const accelerometer = new Accelerometer({ frequency: 60 });
-                
+
                 accelerometer.addEventListener('reading', () => {
                     if (accelerometer.y !== undefined && !isShaking && accelerometer.y > 12) {
                         isShaking = true;
@@ -86,9 +86,9 @@ function Game() {
                         isShaking = false;
                     }
                 });
-    
+
                 accelerometer.start();
-    
+
                 onCleanup(() => {
                     accelerometer.stop();
                 });
@@ -106,9 +106,9 @@ function Game() {
                         }
                     }
                 };
-    
+
                 window.addEventListener('devicemotion', handleMotion);
-    
+
                 onCleanup(() => {
                     window.removeEventListener('devicemotion', handleMotion);
                 });
@@ -125,9 +125,9 @@ function Game() {
                     }
                 }
             };
-    
+
             window.addEventListener('devicemotion', handleMotion);
-    
+
             onCleanup(() => {
                 window.removeEventListener('devicemotion', handleMotion);
             });
@@ -216,10 +216,24 @@ function Game() {
         return placeholders[getRandomInt(0, placeholders.length - 1)];
     };
 
+    const shorterNum = (n: number) => {
+        if (n < 10_000)
+            return n.toString();
+        else if (n < 100_000)
+            return `${(n / 1000).toFixed(2)}k`;
+        else if (n < 1_000_000)
+            return `${(n / 1000).toFixed(1)}k`;
+        else if (n < 10_000_000)
+            return `${(n / 1000000).toFixed(2)}M`;
+        else if (n < 100_000_000)
+            return `${(n / 1000000).toFixed(1)}M`;
+        else
+            return 'kurva hodně';
+    }
+
     const storedToken = localStorage.getItem('gameToken');
-    if (storedToken && !isAuthenticated()) {
+    if (storedToken) {
         setGameToken(storedToken);
-        connectSocket(storedToken);
     }
 
     return (
@@ -252,22 +266,22 @@ function Game() {
                     <div class="mx-auto mt-5">
                         <p class="text-center text-4xl">{count()}</p>
                     </div>
-                    <div class="rounded-xl bg-zinc-900 p-3 my-5 mx-4">
+                    <div class="rounded-xl bg-zinc-900 p-3 my-5 mx-4 flex flex-col overflow-x-scroll">
                         <table class="w-full text-left">
                             <tbody>
                                 {leaderboard().map((user, index) => (
                                     <tr class="border-b border-zinc-700">
-                                        <td class="p-2 text-center">{index + 1}</td>
-                                        <td class="px-1 py-2 text-center">
+                                        <td class="p-2 text-center w-6">{index + 1}</td>
+                                        <td class="py-2 pl-4 text-center w-3">
                                             <span
                                                 class={`inline-block w-3 h-3 rounded-full ${user.isLive ? 'bg-green-500' : 'bg-gray-500'}`}
                                                 aria-label={user.isLive ? 'Online' : 'Offline'}
                                             ></span>
                                         </td>
-                                        <td class={`p-2 ${user.name === name() ? 'font-bold' : ''}`}>
+                                        <td class={`p-2 ${user.name === name() ? 'font-bold' : ''} break-words whitespace-normal`}>
                                             {user.name}
                                         </td>
-                                        <td class="p-2 text-right">{user.score}</td>
+                                        <td class="p-2 text-right sticky right-0 bg-zinc-900">{shorterNum(user.score)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -278,14 +292,14 @@ function Game() {
                         <details class='p-2' id='admin'>
                             <summary>ADMIN STUFF</summary>
 
-                            <div>
+                            <div class='flex-row'>
                                 <input type="text" placeholder='username' />
                                 <button onclick={createNewUser}>create new user</button>
                             </div>
 
-                            <div class='flex flex-col'>
+                            <div class='flex-col'>
                                 <h2>AUDIT LOG</h2>
-                                <div class='flex flex-col'>
+                                <div class='flex-col'>
                                     {auditLogs().map(log => (
                                         <p class="text-sm font-mono py-1 border-b border-zinc-700">
                                             {log}

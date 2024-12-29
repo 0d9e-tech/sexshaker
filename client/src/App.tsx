@@ -212,6 +212,20 @@ function Game() {
         }
     };
 
+    const renameUser = () => {
+        const oldNE = document.querySelector('#rename-user-old') as HTMLInputElement;
+        const newNE = document.querySelector('#rename-user-new') as HTMLInputElement;
+        if (!oldNE || oldNE.value.trim() === '' || !newNE || newNE.value.trim() === '') return;
+
+        const oldN = oldNE.value.trim();
+        const newN = newNE.value.trim();
+        if (confirm(`Are you sure you want to rename user ${oldN} to ${newN}?`)) {
+            socket.emit('rename_user', oldN, newN);
+            oldNE.value = '';
+            newNE.value = '';
+        }
+    };
+
     const getRandomInt = (min: number, max: number): number => {
         min = Math.ceil(min);
         max = Math.floor(max);
@@ -278,13 +292,13 @@ function Game() {
                         )}
                     </details>
                     <div class="mx-auto mt-5">
-                        <p class="text-center text-4xl">{count()}</p>
+                        <p class="text-center text-6xl">{count()}</p>
                     </div>
                     <div class="rounded-xl bg-zinc-900 p-3 my-5 mx-4 flex flex-col overflow-x-scroll">
                         <table class="w-full text-left">
                             <tbody>
                                 {leaderboard().map((user, index) => (
-                                    <tr class="border-b border-zinc-700">
+                                    <tr class={` ${user.name == name() ? 'border-4 border-green-500' : 'border-b border-zinc-700'}`}>
                                         <td class="p-2 text-center w-6">{index + 1}</td>
                                         <td class="py-2 pl-4 text-center w-3">
                                             <span
@@ -306,6 +320,7 @@ function Game() {
                         <details class='p-2' id='admin'>
                             <summary>ADMIN STUFF</summary>
 
+                            <h2 class='mt-6'>user creation</h2>
                             <div class='flex-row'>
                                 <input
                                     type="text"
@@ -315,6 +330,7 @@ function Game() {
                                 <button onclick={createUser}>create new user</button>
                             </div>
 
+                            <h2>user deletion</h2>
                             <div class='flex-row'>
                                 <input
                                     type="text"
@@ -322,6 +338,24 @@ function Game() {
                                     placeholder='username to delete'
                                 />
                                 <button onclick={deleteUser}>delete user</button>
+                            </div>
+
+                            <h2>user rename</h2>
+                            <div class='flex-row'>
+                                <div class='flex-col'>
+                                    <input
+                                        type="text"
+                                        id="rename-user-old"
+                                        placeholder='old username'
+                                    />
+
+                                    <input
+                                        type="text"
+                                        id="rename-user-new"
+                                        placeholder='new username'
+                                    />
+                                </div>
+                                <button onclick={renameUser}>rename user</button>
                             </div>
 
                             <div class='flex-col'>

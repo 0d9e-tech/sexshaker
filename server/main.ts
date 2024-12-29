@@ -203,6 +203,29 @@ io.on('connection', (socket) => {
         saveUsers(users);
         updateLeaderboard();
     });
+
+    socket.on('rename_user', (oldN: string, newN: string) => {
+        if (!user.isAdmin) return;
+
+        if (Array.from(users.values()).find(x => x.name == newN) !== undefined) {
+            addAuditLog(`Failed to rename user ${oldN} to ${newN} (username is already taken)`, user.name);
+            return;
+        }
+    
+        const userEntry = Array.from(users.entries()).find(([_, u]) => u.name === oldN);
+        if (!userEntry) {
+            addAuditLog(`Failed to rename user ${oldN} to ${newN} (user not found)`, user.name);
+            return;
+        }
+    
+        const ruser = users.get(userEntry[0]);
+        ruser!.name = newN;
+
+        addAuditLog(`Renamed "${oldN}" to "${newN}"`, user.name);
+        
+        saveUsers(users);
+        updateLeaderboard();
+    });
 });
 
 server.listen(PORT, '0.0.0.0', () => {

@@ -187,6 +187,22 @@ io.on('connection', (socket) => {
         saveUsers(users);
         updateLeaderboard();
     });
+
+    socket.on('delete_user', (username: string) => {
+        if (!user.isAdmin) return;
+    
+        const userEntry = Array.from(users.entries()).find(([_, u]) => u.name === username);
+        if (!userEntry) {
+            addAuditLog(`Failed to delete user ${username} (user not found)`, user.name);
+            return;
+        }
+    
+        users.delete(userEntry[0]);
+        addAuditLog(`Deleted user "${username}"`, user.name);
+        
+        saveUsers(users);
+        updateLeaderboard();
+    });
 });
 
 server.listen(PORT, '0.0.0.0', () => {

@@ -190,10 +190,24 @@ function Game() {
         setIsAuthenticated(false);
     };
 
-    const createNewUser = () => {
-        const usernameInput = document.querySelector('#admin input[type="text"]') as HTMLInputElement;
-        if (usernameInput && usernameInput.value.trim() !== '') {
-            socket.emit('new_user', usernameInput.value.trim());
+    const createUser = () => {
+        const usernameInput = document.querySelector('#create-user-input') as HTMLInputElement;
+        if (!usernameInput || usernameInput.value.trim() === '') return;
+
+        const username = usernameInput.value.trim();
+        if (confirm(`Are you sure you want to create a new user "${username}"?`)) {
+            socket.emit('new_user', username);
+            usernameInput.value = '';
+        }
+    };
+
+    const deleteUser = () => {
+        const usernameInput = document.querySelector('#delete-user-input') as HTMLInputElement;
+        if (!usernameInput || usernameInput.value.trim() === '') return;
+
+        const username = usernameInput.value.trim();
+        if (confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone!`)) {
+            socket.emit('delete_user', username);
             usernameInput.value = '';
         }
     };
@@ -293,8 +307,21 @@ function Game() {
                             <summary>ADMIN STUFF</summary>
 
                             <div class='flex-row'>
-                                <input type="text" placeholder='username' />
-                                <button onclick={createNewUser}>create new user</button>
+                                <input
+                                    type="text"
+                                    id="create-user-input"
+                                    placeholder='username to create'
+                                />
+                                <button onclick={createUser}>create new user</button>
+                            </div>
+
+                            <div class='flex-row'>
+                                <input
+                                    type="text"
+                                    id="delete-user-input"
+                                    placeholder='username to delete'
+                                />
+                                <button onclick={deleteUser}>delete user</button>
                             </div>
 
                             <div class='flex-col'>

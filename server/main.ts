@@ -7,11 +7,13 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 
+interface Storage {
+    users: Record<string, User>;
+    currentEvent: GameEvent | null;
+}
+
 const PORT = 8080;
 const MAX_AUDIT_LOGS = 100;
-
-const storagePath = path.join(__dirname, 'storage.json');
-let currentEvent: GameEvent | null = null;
 
 const defaultUser: User = {
     name: '',
@@ -49,20 +51,22 @@ const ensureUserFields = (user: Partial<User>): User => ({
 });
 
 const checkEventStatus = () => {
-    if (currentEvent && new Date() >= currentEvent.eventEnd) {
+    if (currentEvent && new Date() >= new Date(currentEvent.eventEnd)) {
         const eventTitle = currentEvent.title;
         currentEvent = null;
         io.emit('event_ended', eventTitle);
         addAuditLog(`Event "${eventTitle}" has ended`, 'SYSTEM');
+        saveStorage(users, currentEvent);
     }
 };
 
-const initializeUsers = (): Map<string, User> => {
+const initializeStorage = (): { users: Map<string, User>; currentEvent: GameEvent | null } => {
     try {
         const data = fs.readFileSync(storagePath, 'utf8');
-        const parsed: Record<string, Partial<User>> = JSON.parse(data);
+        const parsed: Storage = JSON.parse(data);
 
-        const userEntries: [string, User][] = Object.entries(parsed).map(([key, value]) => [
+        // Convert users object to Map
+        const userEntries: [string, User][] = Object.entries(parsed.users).map(([key, value]) => [
             key,
             {
                 ...ensureUserFields(value),
@@ -70,21 +74,40 @@ const initializeUsers = (): Map<string, User> => {
             }
         ]);
 
-        return new Map<string, User>(userEntries);
+        // Convert event date string back to Date object if event exists
+        const event = parsed.currentEvent ? {
+            ...parsed.currentEvent,
+            eventEnd: new Date(parsed.currentEvent.eventEnd)
+        } : null;
+
+        return {
+            users: new Map<string, User>(userEntries),
+            currentEvent: event
+        };
     } catch (error) {
         console.error('Failed to load storage.json:', error);
-        return new Map<string, User>();
+        return {
+            users: new Map<string, User>(),
+            currentEvent: null
+        };
     }
 };
 
-const saveUsers = (users: Map<string, User>) => {
+const saveStorage = (users: Map<string, User>, currentEvent: GameEvent | null) => {
     try {
-        const usersObject = Object.fromEntries(users);
-        fs.writeFileSync(storagePath, JSON.stringify(usersObject, null, 2), 'utf8');
+        const storage: Storage = {
+            users: Object.fromEntries(users),
+            currentEvent
+        };
+        fs.writeFileSync(storagePath, JSON.stringify(storage, null, 2), 'utf8');
     } catch (error) {
         console.error('Failed to save storage.json:', error);
     }
 };
+
+const storagePath = path.join(__dirname, 'storage.json');
+const { users, currentEvent: initialEvent } = initializeStorage();
+let currentEvent = initialEvent;
 
 const auditLogs: string[] = [];
 const addAuditLog = (message: string, admin_name: string) => {
@@ -106,8 +129,6 @@ const addAuditLog = (message: string, admin_name: string) => {
     io.emit('audit_log', logWithTimestamp);
     console.log(logWithTimestamp);
 };
-
-const users: Map<string, User> = initializeUsers();
 
 let server;
 if (process.env.NODE_ENV === 'production') {
@@ -138,7 +159,7 @@ const updateLeaderboard = () => {
 
 setInterval(checkEventStatus, 5000);
 setInterval(() => updateLeaderboard(), 5000);
-setInterval(() => saveUsers(users), 5000);  // TODO: make this better ig
+setInterval(() => saveStorage(users, currentEvent), 5000);
 
 io.on('connection', (socket) => {
     const gameToken = socket.handshake.auth.gameToken || `User-${socket.id}`;
@@ -214,7 +235,7 @@ io.on('connection', (socket) => {
         // Use the new audit log function
         addAuditLog(`Created new user "${username}" with game token ${newGameToken}`, user.name);
 
-        saveUsers(users);
+        saveStorage(users, currentEvent);
         updateLeaderboard();
     });
 
@@ -230,7 +251,7 @@ io.on('connection', (socket) => {
         users.delete(userEntry[0]);
         addAuditLog(`Deleted user "${username}"`, user.name);
 
-        saveUsers(users);
+        saveStorage(users, currentEvent);
         updateLeaderboard();
     });
 
@@ -253,7 +274,7 @@ io.on('connection', (socket) => {
 
         addAuditLog(`Renamed "${oldN}" to "${newN}"`, user.name);
 
-        saveUsers(users);
+        saveStorage(users, currentEvent);
         updateLeaderboard();
     });
 
@@ -276,6 +297,7 @@ io.on('connection', (socket) => {
         );
 
         io.emit('event_update', currentEvent);
+        saveStorage(users, currentEvent);
     });
 
     socket.on('edit_event', (event: Omit<GameEvent, 'eventEnd'> & { eventEnd: string }) => {
@@ -298,6 +320,7 @@ io.on('connection', (socket) => {
         );
 
         io.emit('event_update', currentEvent);
+        saveStorage(users, currentEvent);
     });
 
     socket.on('cancel_event', () => {
@@ -312,6 +335,7 @@ io.on('connection', (socket) => {
         currentEvent = null;
         io.emit('event_ended', eventTitle);
         addAuditLog(`Cancelled event "${eventTitle}"`, user.name);
+        saveStorage(users, currentEvent);
     });
 });
 

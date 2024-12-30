@@ -136,6 +136,19 @@ function Game() {
         }
     };
 
+    const preventShakeToUndo = () => {
+        if (isIOS()) {
+            window.addEventListener('shake', (e) => {
+                e.preventDefault();
+            }, true);
+            
+            // Also prevent the motion event that triggers shake
+            window.addEventListener('motion', (e) => {
+                e.preventDefault();
+            }, true);
+        }
+    };
+
     const updateTimeLeft = () => {
         const event = currentEvent();
         if (!event) return;
@@ -353,6 +366,7 @@ function Game() {
     let timeInterval: number;
     onMount(() => {
         timeInterval = setInterval(updateTimeLeft, 1000);
+        preventShakeToUndo();
     });
 
     onCleanup(() => {

@@ -19,3 +19,25 @@
         @apply p-1 border-2 text-black bg-white
     }
 }
+
+@layer components {
+    .upgrade {
+        @apply flex flex-row gap-2 p-4 bg-zinc-900 rounded-xl mx-4 mt-5
+    }
+
+    .upgrade div {
+        @apply flex flex-col w-full pl-3
+    }
+
+    .upgrade h2 {
+        @apply text-base font-bold pb-2
+    }
+
+    .upgrade p {
+        @apply text-sm
+    }
+
+    .upgrade button {
+        @apply mt-4 w-full text-sm
+    }
+}

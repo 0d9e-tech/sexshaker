@@ -44,6 +44,7 @@ function Game() {
     const [isAuthenticated, setIsAuthenticated] = createSignal(false);
     const [count, setCount] = createSignal(0);
     const [name, setName] = createSignal('');
+    const [faps, setFaps] = createSignal(0);
     const [perFap, setPerFap] = createSignal(1);
     const [socket, setSocket] = createSignal<Socket<DefaultEventsMap, DefaultEventsMap>>();
     const [isAdmin, setIsAdmin] = createSignal(false);
@@ -201,6 +202,7 @@ function Game() {
             setIsAuthenticated(true);
             setPerFap(user.perfap);
             setIsAdmin(user.isAdmin);
+            setFaps(user.faps);
             setLoginError('');
             localStorage.setItem('gameToken', gameToken);
         });
@@ -295,9 +297,11 @@ function Game() {
                 />
             ) : (
                 <div class="flex flex-col w-full h-full">
-                    <details class='w-full p-3'>
-                        <summary class='text-right text-sm'>Přihlášen jako {name()}</summary>
-                        <button class='' onclick={() => logout()}>Odhlásit</button>
+                    <details class='w-full p-3 border-b-4 border-zinc-900 text-sm'>
+                        <summary>Přihlášen jako {name()}</summary>
+                        <h2 class='mt-4'>STATISTIKY:</h2>
+                        <p>počet honění: {faps()}</p>
+                        <button class='mt-4 bg-red-500 text-white text-base font-bold px-4 py-2 rounded-xl' onclick={() => logout()}>Odhlásit</button>
 
                         {import.meta.env.MODE === 'development' && (
                             <div class="flex justify-center">

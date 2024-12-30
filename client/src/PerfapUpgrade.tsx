@@ -2,6 +2,8 @@ import { type Component } from 'solid-js';
 import { Socket } from 'socket.io-client';
 import { DefaultEventsMap } from '@socket.io/component-emitter';
 import { calculatePerFapUpgradeCost, toText } from '../../functions';
+import upgradeImg from './public/viagra.png';
+
 
 interface PerfapUpgradeProps {
     count: number;
@@ -16,20 +18,23 @@ const PerfapUpgrade: Component<PerfapUpgradeProps> = (props) => {
     };
 
     return (
-        <div class="flex flex-col gap-2 p-4 bg-zinc-900 rounded-xl mx-4">
-            <h2>VIAGRA</h2>
-            <p>Aktuální hodnota za fap: {props.perfap}</p>
-            <button
-                onClick={handleUpgrade}
-                disabled={props.count < calculatePerFapUpgradeCost(props.perfap) || !props.socket}
-                class={`px-4 py-2 rounded-lg ${props.count >= calculatePerFapUpgradeCost(props.perfap) && props.socket
-                        ? 'bg-green-600 hover:bg-green-700 font-bold'
-                        : 'bg-gray-600 cursor-not-allowed'
-                    }`}
-            >
-                Koupit za {toText(calculatePerFapUpgradeCost(props.perfap))}
-            </button>
-
+        <div class="upgrade">
+            <img src={upgradeImg} class='max-w-20 aspect-square' alt="upgrade image" />
+            <div>
+                <h2>VIAGRA</h2>
+                <p>Modrá pilulka co zvýší výkonnost.</p>
+                <p>Aktuální počet bodů za honění: {props.perfap}</p>
+                <button
+                    onClick={handleUpgrade}
+                    disabled={props.count < calculatePerFapUpgradeCost(props.perfap) || !props.socket}
+                    class={`px-4 py-2 rounded-lg ${props.count >= calculatePerFapUpgradeCost(props.perfap) && props.socket
+                            ? 'bg-green-600 hover:bg-green-700 font-bold'
+                            : 'bg-gray-600 cursor-not-allowed'
+                        }`}
+                >
+                    Koupit 2x upgrade za {toText(calculatePerFapUpgradeCost(props.perfap))}
+                </button>
+            </div>
         </div>
     );
 };

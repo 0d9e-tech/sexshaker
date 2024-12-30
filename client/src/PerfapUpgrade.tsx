@@ -17,7 +17,7 @@ const PerfapUpgrade: Component<PerfapUpgradeProps> = (props) => {
 
     return (
         <div class="flex flex-col gap-2 p-4 bg-zinc-900 rounded-xl mx-4">
-
+            <h2>VIAGRA</h2>
             <p>Aktuální hodnota za fap: {props.perfap}</p>
             <button
                 onClick={handleUpgrade}

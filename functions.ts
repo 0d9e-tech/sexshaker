@@ -1,7 +1,11 @@
 export const calculatePerFapUpgradeCost = (currentPerFap: number): number => {
-    console.log(`prev ${currentPerFap}`);
     const upgraded = Math.ceil(currentPerFap * Math.log2(currentPerFap) * 5000 + 800);
-    console.log(`upgraded ${upgraded}`);
+    return upgraded;
+}
+
+export const calculateMilenaUpgradeCost = (currentMilena: number): number => {
+    currentMilena += 1;
+    const upgraded = Math.ceil(currentMilena * Math.log2(currentMilena) * 6000 + 15000);
     return upgraded;
 }
 

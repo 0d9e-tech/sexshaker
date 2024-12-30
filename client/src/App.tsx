@@ -6,6 +6,7 @@ import CodeInput from './CodeInput';
 import PerfapUpgrade from './PerfapUpgrade';
 import { toText } from '../../functions';
 import AdminPanel from './AdminPanel';
+import DevkyUpgrade from './DevkyUpgrade';
 
 const isIOS = () => {
     return [
@@ -54,6 +55,7 @@ function Game() {
     const [motionPermission, setMotionPermission] = createSignal<boolean>(false);
     const [currentEvent, setCurrentEvent] = createSignal<GameEvent | null>(null);
     const [timeLeft, setTimeLeft] = createSignal<string>('');
+    const [devky, setDevky] = createSignal(0);
 
     let newSocket: Socket<DefaultEventsMap, DefaultEventsMap>;
 
@@ -203,6 +205,7 @@ function Game() {
             setPerFap(user.perfap);
             setIsAdmin(user.isAdmin);
             setFaps(user.faps);
+            setDevky(user.devky);
             setLoginError('');
             localStorage.setItem('gameToken', gameToken);
         });
@@ -352,6 +355,7 @@ function Game() {
                     <div class='flex flex-col mt-6'>
                         <h2 class='font-bold text-center'>UPGRADY a AKCE</h2>
                         <PerfapUpgrade count={count()} perfap={perFap()} socket={socket()} />
+                        <DevkyUpgrade count={count()} mileny={devky()} socket={socket()} />
                     </div>
 
                     {isAdmin() && <AdminPanel socket={socket()} currentEvent={currentEvent} auditLogs={auditLogs} /> }

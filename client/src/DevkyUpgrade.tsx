@@ -1,42 +1,41 @@
 import { type Component } from 'solid-js';
 import { Socket } from 'socket.io-client';
 import { DefaultEventsMap } from '@socket.io/component-emitter';
-import { calculatePerFapUpgradeCost, toText } from '../../functions';
-import upgradeImg from './public/viagra.png';
+import { calculateMilenaUpgradeCost, toText } from '../../functions';
+import upgradeImg from './public/milena.png';
 
 
 interface PerfapUpgradeProps {
     count: number;
-    perfap: number;
+    mileny: number;
     socket: Socket<DefaultEventsMap, DefaultEventsMap> | undefined;
 }
 
-const PerfapUpgrade: Component<PerfapUpgradeProps> = (props) => {
+const DevkyUpgrade: Component<PerfapUpgradeProps> = (props) => {
     const handleUpgrade = () => {
         if (!props.socket) return;
-        props.socket.emit('upgrade_perfap');
+        props.socket.emit('upgrade_milena');
     };
 
     return (
         <div class="upgrade">
             <img src={upgradeImg} alt="upgrade image" />
             <div>
-                <h2>VIAGRA</h2>
-                <p>Modrá pilulka co zvýší výkonnost.</p>
-                <p>Aktuální počet bodů za honění: {props.perfap}</p>
+                <h2>MILENA</h2>
+                <p>Nadržená starší žena tě pravidelně každou půlminutu pohoní. Už máš {props.mileny}.</p>
                 <button
                     onClick={handleUpgrade}
-                    disabled={props.count < calculatePerFapUpgradeCost(props.perfap) || !props.socket}
-                    class={`px-4 py-2 rounded-lg ${props.count >= calculatePerFapUpgradeCost(props.perfap) && props.socket
+                    disabled={props.count < calculateMilenaUpgradeCost(props.mileny) || !props.socket}
+                    class={`px-4 py-2 rounded-lg ${props.count >= calculateMilenaUpgradeCost(props.mileny) && props.socket
                             ? 'bg-green-600 hover:bg-green-700 font-bold'
                             : 'bg-gray-600 cursor-not-allowed'
                         }`}
                 >
-                    Koupit 2x upgrade za {toText(calculatePerFapUpgradeCost(props.perfap))}
+                    Koupit Milenu za {toText(calculateMilenaUpgradeCost(props.mileny))}
                 </button>
             </div>
         </div>
     );
 };
 
-export default PerfapUpgrade;
+export default DevkyUpgrade;

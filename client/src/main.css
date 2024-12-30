@@ -29,6 +29,10 @@
         @apply flex flex-col w-full pl-3
     }
 
+    .upgrade img {
+        @apply max-w-24 aspect-square
+    }
+
     .upgrade h2 {
         @apply text-base font-bold pb-2
     }

@@ -5,6 +5,7 @@ export interface User {
     score: number;
     isLive: boolean;
     isAdmin: boolean;
+    devky: number;
 }
 
 export interface GameEvent {

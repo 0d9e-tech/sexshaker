@@ -3,7 +3,7 @@ import { createServer } from 'https';
 import { createServer as createHttpServer } from 'http';
 import { readFileSync } from 'fs';
 import { type GameEvent, type User } from '../types';
-import { calculatePerFapUpgradeCost } from '../functions';
+import { calculateMilenaUpgradeCost, calculatePerFapUpgradeCost } from '../functions';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -23,6 +23,7 @@ const defaultUser: User = {
     faps: 0,
     isLive: false,
     isAdmin: false,
+    devky: 0,
 };
 
 const generateGameToken = (length: number): string => {
@@ -51,6 +52,7 @@ const ensureUserFields = (user: Partial<User>): User => ({
     isLive: user.isLive || defaultUser.isLive,
     isAdmin: user.isAdmin || defaultUser.isAdmin,
     perfap: user.perfap || defaultUser.perfap,
+    devky: user.devky || defaultUser.devky,
 });
 
 const checkEventStatus = () => {
@@ -160,6 +162,16 @@ const updateLeaderboard = () => {
     io.emit('leaderboard', sorted);
 };
 
+setInterval(() => {
+    addAuditLog('mileny activated', 'SYSTEM');
+    Array.from(users.entries()).forEach(e => {
+        const user = e[1];
+        if (user.devky > 0) {
+            user.score += currentEvent ? user.devky * user.perfap * currentEvent.multiplier : user.devky * user.perfap;
+        }
+    })
+}, 30000);
+
 setInterval(checkEventStatus, 5000);
 setInterval(() => updateLeaderboard(), 5000);
 setInterval(() => saveStorage(users, currentEvent), 5000);
@@ -227,6 +239,22 @@ io.on('connection', (socket) => {
             socket.emit('user_data', user);
             socket.emit('count', user.score);
             addAuditLog(`${user.name} upgraded their PerFap to ${user.perfap}`, 'SYSTEM');
+            
+            saveStorage(users, currentEvent);
+            updateLeaderboard();
+        }
+    });
+
+    socket.on('upgrade_milena', () => {
+        const upgradeCost = calculateMilenaUpgradeCost(user.devky);
+
+        if (user.score >= upgradeCost) {
+            user.score -= upgradeCost;
+            user.devky += 1;
+            
+            socket.emit('user_data', user);
+            socket.emit('count', user.score);
+            addAuditLog(`${user.name} bought a milena (now has ${user.devky})`, 'SYSTEM');
             
             saveStorage(users, currentEvent);
             updateLeaderboard();

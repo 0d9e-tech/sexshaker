@@ -3,6 +3,8 @@ import { io, Socket } from 'socket.io-client';
 import { DefaultEventsMap } from '@socket.io/component-emitter';
 import { GameEvent, type User } from '../../types';
 import CodeInput from './CodeInput';
+import PerfapUpgrade from './PerfapUpgrade';
+import { toText } from '../../functions';
 
 const isIOS = () => {
     return [
@@ -38,6 +40,8 @@ function Game() {
     const [isAuthenticated, setIsAuthenticated] = createSignal(false);
     const [count, setCount] = createSignal(0);
     const [name, setName] = createSignal('');
+    const [perFap, setPerFap] = createSignal(1);
+    const [socket, setSocket] = createSignal<Socket<DefaultEventsMap, DefaultEventsMap>>();
     const [isAdmin, setIsAdmin] = createSignal(false);
     const [leaderboard, setLeaderboard] = createSignal<User[]>([]);
     const [error, setLoginError] = createSignal('');
@@ -46,7 +50,7 @@ function Game() {
     const [currentEvent, setCurrentEvent] = createSignal<GameEvent | null>(null);
     const [timeLeft, setTimeLeft] = createSignal<string>('');
 
-    let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
+    let newSocket: Socket<DefaultEventsMap, DefaultEventsMap>;
 
     const requestMotionPermission = async () => {
         if (isIOS()) {
@@ -173,47 +177,50 @@ function Game() {
         }
     };
 
-    const fap = () => socket.emit('fap');
+    const fap = () => newSocket.emit('fap');
 
     const connectSocket = (gameToken: string) => {
-        socket = io(import.meta.env.VITE_SOCKET_URL, {
+        newSocket = io(import.meta.env.VITE_SOCKET_URL, {
             auth: { gameToken },
         });
 
-        socket.on('auth_error', (message: string) => {
+        setSocket(newSocket);
+
+        newSocket.on('auth_error', (message: string) => {
             setLoginError(message);
             setIsAuthenticated(false);
         });
 
-        socket.on('user_data', (user: User) => {
+        newSocket.on('user_data', (user: User) => {
             setName(user.name);
             setCount(user.score);
             setIsAuthenticated(true);
+            setPerFap(user.perfap);
             setIsAdmin(user.isAdmin);
             setLoginError('');
             localStorage.setItem('gameToken', gameToken);
         });
 
-        socket.on('count', (c: number) => {
+        newSocket.on('count', (c: number) => {
             setCount(c);
         });
 
-        socket.on('leaderboard', setLeaderboard);
+        newSocket.on('leaderboard', setLeaderboard);
 
-        socket.on('audit_log', (log: string) => {
+        newSocket.on('audit_log', (log: string) => {
             appendAuditLog(log);
         });
 
-        socket.on('audit_log_history', (logs: string[]) => {
+        newSocket.on('audit_log_history', (logs: string[]) => {
             setAuditLogs(logs);
         });
 
-        socket.on('event_update', (event: GameEvent) => {
+        newSocket.on('event_update', (event: GameEvent) => {
             setCurrentEvent(event);
             updateTimeLeft();
         });
 
-        socket.on('event_ended', (_) => {
+        newSocket.on('event_ended', (_) => {
             setCurrentEvent(null);
             setTimeLeft('');
         });
@@ -235,7 +242,7 @@ function Game() {
     };
 
     const logout = () => {
-        socket.close();
+        newSocket.close();
         setIsAuthenticated(false);
     };
 
@@ -245,7 +252,7 @@ function Game() {
 
         const username = usernameInput.value.trim();
         if (confirm(`Are you sure you want to create a new user "${username}"?`)) {
-            socket.emit('new_user', username);
+            newSocket.emit('new_user', username);
             usernameInput.value = '';
         }
     };
@@ -256,7 +263,7 @@ function Game() {
 
         const username = usernameInput.value.trim();
         if (confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone!`)) {
-            socket.emit('delete_user', username);
+            newSocket.emit('delete_user', username);
             usernameInput.value = '';
         }
     };
@@ -269,7 +276,7 @@ function Game() {
         const oldN = oldNE.value.trim();
         const newN = newNE.value.trim();
         if (confirm(`Are you sure you want to rename user ${oldN} to ${newN}?`)) {
-            socket.emit('rename_user', oldN, newN);
+            newSocket.emit('rename_user', oldN, newN);
             oldNE.value = '';
             newNE.value = '';
         }
@@ -283,15 +290,15 @@ function Game() {
 
         if (!titleInput?.value || !descInput?.value || !endInput?.value || !multiplierInput?.value) return;
 
-        const event = {
+        const event: Omit<GameEvent, 'eventEnd'> & { eventEnd: string } = {
             title: titleInput.value,
             description: descInput.value,
             eventEnd: endInput.value,
-            scorePerFap: parseInt(multiplierInput.value)
+            multiplier: parseInt(multiplierInput.value)
         };
 
         if (confirm(`Are you sure you want to start event "${event.title}"?`)) {
-            socket.emit('create_event', event);
+            newSocket.emit('create_event', event);
             titleInput.value = '';
             descInput.value = '';
             endInput.value = '';
@@ -307,21 +314,21 @@ function Game() {
 
         if (!titleInput?.value || !descInput?.value || !endInput?.value || !multiplierInput?.value) return;
 
-        const event = {
+        const event: Omit<GameEvent, 'eventEnd'> & { eventEnd: string } = {
             title: titleInput.value,
             description: descInput.value,
             eventEnd: endInput.value,
-            scorePerFap: parseInt(multiplierInput.value)
+            multiplier: parseInt(multiplierInput.value)
         };
 
         if (confirm(`Are you sure you want to edit event "${currentEvent()?.title}" to "${event.title}"?`)) {
-            socket.emit('edit_event', event);
+            newSocket.emit('edit_event', event);
         }
     };
 
     const cancelEvent = () => {
         if (confirm('Are you sure you want to cancel the current event?')) {
-            socket.emit('cancel_event');
+            newSocket.emit('cancel_event');
         }
     };
 
@@ -342,21 +349,6 @@ function Game() {
 
         return placeholders[getRandomInt(0, placeholders.length - 1)];
     };
-
-    const shorterNum = (n: number) => {
-        if (n < 10_000)
-            return n.toString();
-        else if (n < 100_000)
-            return `${(n / 1000).toFixed(2)}k`;
-        else if (n < 1_000_000)
-            return `${(n / 1000).toFixed(1)}k`;
-        else if (n < 10_000_000)
-            return `${(n / 1000000).toFixed(2)}M`;
-        else if (n < 100_000_000)
-            return `${(n / 1000000).toFixed(1)}M`;
-        else
-            return 'kurva hodně';
-    }
 
     const storedToken = localStorage.getItem('gameToken');
     if (storedToken) {
@@ -392,7 +384,7 @@ function Game() {
                         {import.meta.env.MODE === 'development' && (
                             <div class="flex justify-center">
                                 <button
-                                    onClick={() => socket.emit('fap')}
+                                    onClick={() => newSocket.emit('fap')}
                                     class="bg-red-500 text-white px-4 py-2 rounded-xl"
                                 >
                                     send sex
@@ -401,7 +393,7 @@ function Game() {
                         )}
                     </details>
                     <div class="mx-auto mt-5">
-                        <p class="text-center text-6xl">{count()}</p>
+                        <p class="text-center text-6xl">{toText(count())}</p>
                         {currentEvent() && (
                             <div class="mt-4 p-4 bg-zinc-700 rounded-xl text-center">
                                 <h3 class="text-xl font-bold">{currentEvent()?.title}</h3>
@@ -412,6 +404,7 @@ function Game() {
                             </div>
                         )}
                     </div>
+                    
                     <div class="rounded-xl bg-zinc-900 p-3 my-5 mx-4 flex flex-col overflow-x-scroll">
                         <table class="w-full text-left">
                             <tbody>
@@ -427,15 +420,21 @@ function Game() {
                                         <td class={`p-2 ${user.name === name() ? 'font-bold' : ''} break-words whitespace-normal`}>
                                             {user.name}
                                         </td>
-                                        <td class="p-2 text-right sticky right-0 bg-zinc-900">{shorterNum(user.score)}</td>
+                                        <td class="p-2 text-right sticky right-0 bg-zinc-900">{toText(user.score)}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
 
+                    <div class='flex flex-col mt-6'>
+                        <h2 class='font-bold text-center'>UPGRADY a AKCE</h2>
+                        
+                        <PerfapUpgrade count={count()} perfap={perFap()} socket={socket()} />
+                    </div>
+
                     {isAdmin() &&
-                        <details class='p-2' id='admin' open>
+                        <details class='p-2' id='admin'>
                             <summary>ADMIN STUFF</summary>
 
                             <h2 class='mt-6'>user creation</h2>
@@ -542,7 +541,7 @@ function Game() {
                                             type="number"
                                             id="edit-event-multiplier"
                                             placeholder="New score multiplier"
-                                            value={currentEvent()?.scorePerFap || ''}
+                                            value={currentEvent()?.multiplier || ''}
                                             min="0"
                                             class="mb-2 w-full"
                                         />

@@ -33,6 +33,8 @@ fi
 # Step 3: Transfer server files to the server
 echo -e "${GREEN}Deploying server files...${NC}"
 rsync -avz --exclude="node_modules" --exclude="storage.json" --exclude=".env" "$LOCAL_SERVER_PATH/" "$SERVER:$SERVER_REMOTE_PATH"
+rsync -avz "./functions.ts" "$SERVER:$SERVER_REMOTE_PATH"
+ssh $SERVER "sed -i \"s|from '../functions'|from './functions'|\" /root/sexshaker-server/main.ts"
 if [ $? -ne 0 ]; then
     echo -e "${RED}Failed to deploy server files. Exiting.${NC}"
     exit 1

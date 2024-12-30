@@ -3,6 +3,7 @@ import { createServer } from 'https';
 import { createServer as createHttpServer } from 'http';
 import { readFileSync } from 'fs';
 import { type GameEvent, type User } from '../types';
+import { calculatePerFapUpgradeCost } from '../functions';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -18,6 +19,7 @@ const MAX_AUDIT_LOGS = 100;
 const defaultUser: User = {
     name: '',
     score: 0,
+    perfap: 1,
     faps: 0,
     isLive: false,
     isAdmin: false,
@@ -48,6 +50,7 @@ const ensureUserFields = (user: Partial<User>): User => ({
     faps: user.faps || defaultUser.faps,
     isLive: user.isLive || defaultUser.isLive,
     isAdmin: user.isAdmin || defaultUser.isAdmin,
+    perfap: user.perfap || defaultUser.perfap,
 });
 
 const checkEventStatus = () => {
@@ -202,15 +205,40 @@ io.on('connection', (socket) => {
     }
 
     socket.on('fap', () => {
-        const scoreIncrease = currentEvent ? currentEvent.scorePerFap : 1;
+        const scoreIncrease = currentEvent ? user.perfap * currentEvent.multiplier : user.perfap;
+
+        if (Number.isNaN(scoreIncrease)) {
+            console.log('fuck');
+            return;
+        }
+
         user.score += scoreIncrease;
+        user.faps += 1;
         socket.emit('count', user.score);
+    });
+
+    socket.on('upgrade_perfap', () => {
+        const upgradeCost = calculatePerFapUpgradeCost(user.perfap);
+
+        if (user.score >= upgradeCost) {
+            user.score -= upgradeCost;
+            user.perfap *= 2;
+            
+            socket.emit('user_data', user);
+            socket.emit('count', user.score);
+            addAuditLog(`${user.name} upgraded their PerFap to ${user.perfap}`, 'SYSTEM');
+            
+            saveStorage(users, currentEvent);
+            updateLeaderboard();
+        }
     });
 
     socket.on('disconnect', () => {
         user.isLive = false;
         console.log(`${user.name} disconnected`);
     });
+
+    // ADMIN STUFF
 
     socket.on('new_user', (username: string) => {
         if (!user.isAdmin) return;
@@ -245,6 +273,11 @@ io.on('connection', (socket) => {
         const userEntry = Array.from(users.entries()).find(([_, u]) => u.name === username);
         if (!userEntry) {
             addAuditLog(`Failed to delete user ${username} (user not found)`, user.name);
+            return;
+        }
+
+        if (userEntry[1].isAdmin) {
+            addAuditLog(`Failed to delete user ${username} (user is admin)`, user.name);
             return;
         }
 
@@ -286,13 +319,15 @@ io.on('connection', (socket) => {
             return;
         }
 
+        console.log({event});
+
         currentEvent = {
             ...event,
             eventEnd: new Date(event.eventEnd)
         };
 
         addAuditLog(
-            `Created new event "${event.title}" with ${event.scorePerFap}x multiplier, ending at ${currentEvent.eventEnd.toLocaleString()}`,
+            `Created new event "${event.title}" with ${event.multiplier}x multiplier, ending at ${currentEvent.eventEnd.toLocaleString()}`,
             user.name
         );
 
@@ -315,7 +350,7 @@ io.on('connection', (socket) => {
         };
 
         addAuditLog(
-            `Edited event "${oldTitle}" -> "${event.title}" with ${event.scorePerFap}x multiplier, ending at ${currentEvent.eventEnd.toLocaleString()}`,
+            `Edited event "${oldTitle}" -> "${event.title}" with ${event.multiplier}x multiplier, ending at ${currentEvent.eventEnd.toLocaleString()}`,
             user.name
         );
 

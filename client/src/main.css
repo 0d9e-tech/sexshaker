@@ -3,12 +3,16 @@
 @tailwind utilities;
 
 @layer base {
-    #admin input {
+    #admin input, textarea {
         @apply text-black p-2
     }
 
     #admin div {
         @apply my-3 flex gap-2
+    }
+
+    #admin h2 {
+        @apply font-bold
     }
 
     #admin button {

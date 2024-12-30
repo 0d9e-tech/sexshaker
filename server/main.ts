@@ -2,7 +2,7 @@ import { Server } from 'socket.io';
 import { createServer } from 'https';
 import { createServer as createHttpServer } from 'http';
 import { readFileSync } from 'fs';
-import { type User } from '../types';
+import { type GameEvent, type User } from '../types';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -11,6 +11,7 @@ const PORT = 8080;
 const MAX_AUDIT_LOGS = 100;
 
 const storagePath = path.join(__dirname, 'storage.json');
+let currentEvent: GameEvent | null = null;
 
 const defaultUser: User = {
     name: '',
@@ -20,9 +21,23 @@ const defaultUser: User = {
     isAdmin: false,
 };
 
-const generateGameToken = (): string => {
-    // Generate a random 6 character string using letters and numbers
-    return crypto.randomBytes(3).toString('hex').toUpperCase();
+const generateGameToken = (length: number): string => {
+    const vowels = "AEIOUaeiou";
+    const consonants = "BCDFGHJKLMNPQRSTVWXYZbcdfghjklmnpqrstvwxyz";
+    let token = "";
+
+    const getRandomIndex = (poolLength: number) => {
+        const randomValue = crypto.randomBytes(1)[0];
+        return randomValue % poolLength;
+    };
+
+    for (let i = 0; i < length; i++) {
+        const charPool = i % 2 === 0 ? consonants : vowels;
+        const randomIndex = getRandomIndex(charPool.length);
+        token += charPool[randomIndex];
+    }
+
+    return token;
 };
 
 const ensureUserFields = (user: Partial<User>): User => ({
@@ -33,11 +48,20 @@ const ensureUserFields = (user: Partial<User>): User => ({
     isAdmin: user.isAdmin || defaultUser.isAdmin,
 });
 
+const checkEventStatus = () => {
+    if (currentEvent && new Date() >= currentEvent.eventEnd) {
+        const eventTitle = currentEvent.title;
+        currentEvent = null;
+        io.emit('event_ended', eventTitle);
+        addAuditLog(`Event "${eventTitle}" has ended`, 'SYSTEM');
+    }
+};
+
 const initializeUsers = (): Map<string, User> => {
     try {
         const data = fs.readFileSync(storagePath, 'utf8');
         const parsed: Record<string, Partial<User>> = JSON.parse(data);
-        
+
         const userEntries: [string, User][] = Object.entries(parsed).map(([key, value]) => [
             key,
             {
@@ -71,14 +95,14 @@ const addAuditLog = (message: string, admin_name: string) => {
         hour: '2-digit',
         minute: '2-digit',
     });
-    
+
     const logWithTimestamp = `${timestamp} ${admin_name} - ${message}`;
     auditLogs.unshift(logWithTimestamp);
-    
+
     if (auditLogs.length > MAX_AUDIT_LOGS) {
         auditLogs.pop();
     }
-    
+
     io.emit('audit_log', logWithTimestamp);
     console.log(logWithTimestamp);
 };
@@ -112,6 +136,7 @@ const updateLeaderboard = () => {
     io.emit('leaderboard', sorted);
 };
 
+setInterval(checkEventStatus, 5000);
 setInterval(() => updateLeaderboard(), 5000);
 setInterval(() => saveUsers(users), 5000);  // TODO: make this better ig
 
@@ -151,8 +176,13 @@ io.on('connection', (socket) => {
         socket.emit('audit_log_history', auditLogs);
     }
 
+    if (currentEvent) {
+        socket.emit('event_update', currentEvent);
+    }
+
     socket.on('fap', () => {
-        user.score += 1;
+        const scoreIncrease = currentEvent ? currentEvent.scorePerFap : 1;
+        user.score += scoreIncrease;
         socket.emit('count', user.score);
     });
 
@@ -171,7 +201,7 @@ io.on('connection', (socket) => {
 
         let newGameToken: string;
         do {
-            newGameToken = generateGameToken();
+            newGameToken = generateGameToken(10);
         } while (users.has(newGameToken));
 
         const newUser: User = {
@@ -190,16 +220,16 @@ io.on('connection', (socket) => {
 
     socket.on('delete_user', (username: string) => {
         if (!user.isAdmin) return;
-    
+
         const userEntry = Array.from(users.entries()).find(([_, u]) => u.name === username);
         if (!userEntry) {
             addAuditLog(`Failed to delete user ${username} (user not found)`, user.name);
             return;
         }
-    
+
         users.delete(userEntry[0]);
         addAuditLog(`Deleted user "${username}"`, user.name);
-        
+
         saveUsers(users);
         updateLeaderboard();
     });
@@ -211,20 +241,77 @@ io.on('connection', (socket) => {
             addAuditLog(`Failed to rename user ${oldN} to ${newN} (username is already taken)`, user.name);
             return;
         }
-    
+
         const userEntry = Array.from(users.entries()).find(([_, u]) => u.name === oldN);
         if (!userEntry) {
             addAuditLog(`Failed to rename user ${oldN} to ${newN} (user not found)`, user.name);
             return;
         }
-    
+
         const ruser = users.get(userEntry[0]);
         ruser!.name = newN;
 
         addAuditLog(`Renamed "${oldN}" to "${newN}"`, user.name);
-        
+
         saveUsers(users);
         updateLeaderboard();
+    });
+
+    socket.on('create_event', (event: Omit<GameEvent, 'eventEnd'> & { eventEnd: string }) => {
+        if (!user.isAdmin) return;
+
+        if (currentEvent) {
+            addAuditLog(`Failed to create event "${event.title}" (another event is already active)`, user.name);
+            return;
+        }
+
+        currentEvent = {
+            ...event,
+            eventEnd: new Date(event.eventEnd)
+        };
+
+        addAuditLog(
+            `Created new event "${event.title}" with ${event.scorePerFap}x multiplier, ending at ${currentEvent.eventEnd.toLocaleString()}`,
+            user.name
+        );
+
+        io.emit('event_update', currentEvent);
+    });
+
+    socket.on('edit_event', (event: Omit<GameEvent, 'eventEnd'> & { eventEnd: string }) => {
+        if (!user.isAdmin) return;
+
+        if (!currentEvent) {
+            addAuditLog('Failed to edit event (no active event)', user.name);
+            return;
+        }
+
+        const oldTitle = currentEvent.title;
+        currentEvent = {
+            ...event,
+            eventEnd: new Date(event.eventEnd)
+        };
+
+        addAuditLog(
+            `Edited event "${oldTitle}" -> "${event.title}" with ${event.scorePerFap}x multiplier, ending at ${currentEvent.eventEnd.toLocaleString()}`,
+            user.name
+        );
+
+        io.emit('event_update', currentEvent);
+    });
+
+    socket.on('cancel_event', () => {
+        if (!user.isAdmin) return;
+
+        if (!currentEvent) {
+            addAuditLog('Failed to cancel event (no active event)', user.name);
+            return;
+        }
+
+        const eventTitle = currentEvent.title;
+        currentEvent = null;
+        io.emit('event_ended', eventTitle);
+        addAuditLog(`Cancelled event "${eventTitle}"`, user.name);
     });
 });
 

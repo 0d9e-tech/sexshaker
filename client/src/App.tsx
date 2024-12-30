@@ -1,7 +1,7 @@
-import { createSignal, onCleanup } from 'solid-js';
+import { createSignal, onCleanup, onMount } from 'solid-js';
 import { io, Socket } from 'socket.io-client';
 import { DefaultEventsMap } from '@socket.io/component-emitter';
-import { type User } from '../../types';
+import { GameEvent, type User } from '../../types';
 import CodeInput from './CodeInput';
 
 const isIOS = () => {
@@ -43,6 +43,8 @@ function Game() {
     const [error, setLoginError] = createSignal('');
     const [auditLogs, setAuditLogs] = createSignal<string[]>([]);
     const [motionPermission, setMotionPermission] = createSignal<boolean>(false);
+    const [currentEvent, setCurrentEvent] = createSignal<GameEvent | null>(null);
+    const [timeLeft, setTimeLeft] = createSignal<string>('');
 
     let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
 
@@ -134,6 +136,30 @@ function Game() {
         }
     };
 
+    const updateTimeLeft = () => {
+        const event = currentEvent();
+        if (!event) return;
+
+        const now = new Date();
+        const end = new Date(event.eventEnd);
+        const diff = end.getTime() - now.getTime();
+
+        if (diff <= 0) {
+            setCurrentEvent(null);
+            setTimeLeft('');
+            return;
+        }
+
+        const minutes = Math.ceil(diff / (1000 * 60));
+        if (minutes >= 60) {
+            const hours = Math.floor(minutes / 60);
+            const remainingMinutes = minutes % 60;
+            setTimeLeft(`${hours}h ${remainingMinutes}min`);
+        } else {
+            setTimeLeft(`${minutes}min`);
+        }
+    };
+
     const fap = () => socket.emit('fap');
 
     const connectSocket = (gameToken: string) => {
@@ -167,6 +193,16 @@ function Game() {
 
         socket.on('audit_log_history', (logs: string[]) => {
             setAuditLogs(logs);
+        });
+
+        socket.on('event_update', (event: GameEvent) => {
+            setCurrentEvent(event);
+            updateTimeLeft();
+        });
+
+        socket.on('event_ended', (_) => {
+            setCurrentEvent(null);
+            setTimeLeft('');
         });
     };
 
@@ -226,6 +262,56 @@ function Game() {
         }
     };
 
+    const createEvent = () => {
+        const titleInput = document.querySelector('#event-title') as HTMLInputElement;
+        const descInput = document.querySelector('#event-description') as HTMLTextAreaElement;
+        const endInput = document.querySelector('#event-end') as HTMLInputElement;
+        const multiplierInput = document.querySelector('#event-multiplier') as HTMLInputElement;
+
+        if (!titleInput?.value || !descInput?.value || !endInput?.value || !multiplierInput?.value) return;
+
+        const event = {
+            title: titleInput.value,
+            description: descInput.value,
+            eventEnd: endInput.value,
+            scorePerFap: parseInt(multiplierInput.value)
+        };
+
+        if (confirm(`Are you sure you want to start event "${event.title}"?`)) {
+            socket.emit('create_event', event);
+            titleInput.value = '';
+            descInput.value = '';
+            endInput.value = '';
+            multiplierInput.value = '';
+        }
+    };
+
+    const editEvent = () => {
+        const titleInput = document.querySelector('#edit-event-title') as HTMLInputElement;
+        const descInput = document.querySelector('#edit-event-description') as HTMLTextAreaElement;
+        const endInput = document.querySelector('#edit-event-end') as HTMLInputElement;
+        const multiplierInput = document.querySelector('#edit-event-multiplier') as HTMLInputElement;
+
+        if (!titleInput?.value || !descInput?.value || !endInput?.value || !multiplierInput?.value) return;
+
+        const event = {
+            title: titleInput.value,
+            description: descInput.value,
+            eventEnd: endInput.value,
+            scorePerFap: parseInt(multiplierInput.value)
+        };
+
+        if (confirm(`Are you sure you want to edit event "${currentEvent()?.title}" to "${event.title}"?`)) {
+            socket.emit('edit_event', event);
+        }
+    };
+
+    const cancelEvent = () => {
+        if (confirm('Are you sure you want to cancel the current event?')) {
+            socket.emit('cancel_event');
+        }
+    };
+
     const getRandomInt = (min: number, max: number): number => {
         min = Math.ceil(min);
         max = Math.floor(max);
@@ -264,6 +350,15 @@ function Game() {
         setGameToken(storedToken);
     }
 
+    let timeInterval: number;
+    onMount(() => {
+        timeInterval = setInterval(updateTimeLeft, 1000);
+    });
+
+    onCleanup(() => {
+        clearInterval(timeInterval);
+    });
+
     return (
         <div class="bg-zinc-800 w-full min-h-screen flex flex-col text-slate-300">
             {!isAuthenticated() ? (
@@ -293,6 +388,15 @@ function Game() {
                     </details>
                     <div class="mx-auto mt-5">
                         <p class="text-center text-6xl">{count()}</p>
+                        {currentEvent() && (
+                            <div class="mt-4 p-4 bg-zinc-700 rounded-xl text-center">
+                                <h3 class="text-xl font-bold">{currentEvent()?.title}</h3>
+                                <p class="mt-2">{currentEvent()?.description}</p>
+                                <p class="mt-2 text-sm text-center">
+                                    Zbývá: {timeLeft()}
+                                </p>
+                            </div>
+                        )}
                     </div>
                     <div class="rounded-xl bg-zinc-900 p-3 my-5 mx-4 flex flex-col overflow-x-scroll">
                         <table class="w-full text-left">
@@ -317,7 +421,7 @@ function Game() {
                     </div>
 
                     {isAdmin() &&
-                        <details class='p-2' id='admin'>
+                        <details class='p-2' id='admin' open>
                             <summary>ADMIN STUFF</summary>
 
                             <h2 class='mt-6'>user creation</h2>
@@ -357,6 +461,88 @@ function Game() {
                                 </div>
                                 <button onclick={renameUser}>rename user</button>
                             </div>
+
+                            <h2>EVENT MANAGEMENT</h2>
+                            {!currentEvent() && (
+                                <div class='flex-col'>
+                                    <input
+                                        type="text"
+                                        id="event-title"
+                                        placeholder='Event title'
+                                        class="mb-2 w-full"
+                                    />
+                                    <textarea
+                                        id="event-description"
+                                        placeholder='Event description'
+                                        class="mb-2 w-full"
+                                    />
+                                    <input
+                                        type="datetime-local"
+                                        id="event-end"
+                                        class="mb-2 w-full"
+                                    />
+                                    <input
+                                        type="number"
+                                        id="event-multiplier"
+                                        placeholder='Score multiplier'
+                                        min="0"
+                                        class="mb-2 w-full"
+                                    />
+                                    <button onclick={createEvent}>Create Event</button>
+                                </div>
+                            )}
+
+                            {currentEvent() && (
+                                <div class='flex-col'>
+                                    <p>Active event: {currentEvent()?.title}</p>
+                                    <p>Ends at: {new Date(currentEvent()!.eventEnd).toLocaleString()}</p>
+
+                                    <div class='flex-col'>
+                                        <h3 class='mb-2'>Edit Event</h3>
+                                        <input
+                                            type="text"
+                                            id="edit-event-title"
+                                            placeholder="New event title"
+                                            value={currentEvent()?.title || ''}
+                                            class="mb-2 w-full"
+                                        />
+                                        <textarea
+                                            id="edit-event-description"
+                                            placeholder="New event description"
+                                            value={currentEvent()?.description || ''}
+                                            class="mb-2 w-full"
+                                        />
+                                        <input
+                                            type="datetime-local"
+                                            id="edit-event-end"
+                                            value={
+                                                currentEvent()?.eventEnd
+                                                    ? new Date(new Date(currentEvent()!.eventEnd).getTime() - new Date().getTimezoneOffset() * 60000)
+                                                        .toISOString()
+                                                        .slice(0, 16)
+                                                    : ''
+                                            }
+                                            class="mb-2 w-full"
+                                        />
+                                        <input
+                                            type="number"
+                                            id="edit-event-multiplier"
+                                            placeholder="New score multiplier"
+                                            value={currentEvent()?.scorePerFap || ''}
+                                            min="0"
+                                            class="mb-2 w-full"
+                                        />
+                                        <div>
+                                            <button onclick={editEvent} class="flex-1">
+                                                Save Changes
+                                            </button>
+                                            <button onclick={cancelEvent} class="flex-1">
+                                                Cancel Event
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div class='flex-col'>
                                 <h2>AUDIT LOG</h2>

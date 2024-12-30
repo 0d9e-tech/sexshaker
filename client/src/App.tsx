@@ -36,6 +36,9 @@ export function App() {
 }
 
 function Game() {
+    const ANDROID_THRESHOLD = 12;
+    const IOS_THRESHOLD = 8;
+
     const [gameToken, setGameToken] = createSignal('');
     const [isAuthenticated, setIsAuthenticated] = createSignal(false);
     const [count, setCount] = createSignal(0);
@@ -85,10 +88,10 @@ function Game() {
                 const accelerometer = new Accelerometer({ frequency: 60 });
 
                 accelerometer.addEventListener('reading', () => {
-                    if (accelerometer.y !== undefined && !isShaking && accelerometer.y > 12) {
+                    if (accelerometer.y !== undefined && !isShaking && accelerometer.y > ANDROID_THRESHOLD) {
                         isShaking = true;
                         fap();
-                    } else if (accelerometer.y !== undefined && isShaking && accelerometer.y < 12) {
+                    } else if (accelerometer.y !== undefined && isShaking && accelerometer.y < ANDROID_THRESHOLD) {
                         isShaking = false;
                     }
                 });
@@ -104,10 +107,10 @@ function Game() {
                 const handleMotion = (event: DeviceMotionEvent) => {
                     const acceleration = event.accelerationIncludingGravity;
                     if (acceleration && acceleration.y !== null) {
-                        if (!isShaking && acceleration.y > 12) {
+                        if (!isShaking && acceleration.y > IOS_THRESHOLD) {
                             isShaking = true;
                             fap();
-                        } else if (isShaking && acceleration.y < 12) {
+                        } else if (isShaking && acceleration.y < IOS_THRESHOLD) {
                             isShaking = false;
                         }
                     }
@@ -123,10 +126,10 @@ function Game() {
             const handleMotion = (event: DeviceMotionEvent) => {
                 const acceleration = event.accelerationIncludingGravity;
                 if (acceleration && acceleration.y !== null) {
-                    if (!isShaking && acceleration.y > 12) {
+                    if (!isShaking && acceleration.y > IOS_THRESHOLD) {
                         isShaking = true;
                         fap();
-                    } else if (isShaking && acceleration.y < 12) {
+                    } else if (isShaking && acceleration.y < IOS_THRESHOLD) {
                         isShaking = false;
                     }
                 }
@@ -429,7 +432,6 @@ function Game() {
 
                     <div class='flex flex-col mt-6'>
                         <h2 class='font-bold text-center'>UPGRADY a AKCE</h2>
-                        
                         <PerfapUpgrade count={count()} perfap={perFap()} socket={socket()} />
                     </div>
 

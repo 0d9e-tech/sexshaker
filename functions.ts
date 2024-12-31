@@ -9,6 +9,15 @@ export const calculateMilenaUpgradeCost = (currentMilena: number): number => {
     return upgraded;
 }
 
+export const minuty = (n: number) => {
+    if (n == 1)
+        return 'minutu';
+    if (n > 1 && n < 5)
+        return 'minuty';
+    else
+        return 'minut';
+}
+
 export const toText = (n: number) => {
     if (n < 100)
         return n;

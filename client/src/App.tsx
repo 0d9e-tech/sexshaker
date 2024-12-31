@@ -4,9 +4,10 @@ import { DefaultEventsMap } from '@socket.io/component-emitter';
 import { GameEvent, type User } from '../../types';
 import CodeInput from './CodeInput';
 import PerfapUpgrade from './PerfapUpgrade';
-import { toText } from '../../functions';
+import { minuty, toText } from '../../functions';
 import AdminPanel from './AdminPanel';
 import DevkyUpgrade from './DevkyUpgrade';
+import CockblockUpgrade from './CockBlockUpgrade';
 
 const isIOS = () => {
     return [
@@ -56,6 +57,10 @@ function Game() {
     const [currentEvent, setCurrentEvent] = createSignal<GameEvent | null>(null);
     const [timeLeft, setTimeLeft] = createSignal<string>('');
     const [devky, setDevky] = createSignal(0);
+    const [isBlocked, setIsBlocked] = createSignal(false);
+    const [whoBlockedPlayer, setWhoBlockedPlayer] = createSignal('');
+    const [nextBlockingAvailable, setNextBlockingAvailable] = createSignal<Date | null>(null);
+    const [blockEndTime, setBlockEndTime] = createSignal<Date | null>(null);
 
     let newSocket: Socket<DefaultEventsMap, DefaultEventsMap>;
 
@@ -152,7 +157,7 @@ function Game() {
             window.addEventListener('shake', (e) => {
                 e.preventDefault();
             }, true);
-            
+
             // Also prevent the motion event that triggers shake
             window.addEventListener('motion', (e) => {
                 e.preventDefault();
@@ -205,7 +210,9 @@ function Game() {
             setPerFap(user.perfap);
             setIsAdmin(user.isAdmin);
             setFaps(user.faps);
+            setIsBlocked(user.isBlocked)
             setDevky(user.devky);
+            setNextBlockingAvailable(user.nextBlockingAvailable);
             setLoginError('');
             localStorage.setItem('gameToken', gameToken);
         });
@@ -233,6 +240,21 @@ function Game() {
             setCurrentEvent(null);
             setTimeLeft('');
         });
+
+        newSocket.on('user_blocked', (data: { blocker: string, blocked: string }) => {
+            if (data.blocked === name()) {
+                setIsBlocked(true);
+                setWhoBlockedPlayer(data.blocker);
+            }
+        });
+
+        newSocket.on('user_unblocked', (username: string) => {
+            if (username === name()) {
+                setIsBlocked(false);
+                setWhoBlockedPlayer('');
+                setBlockEndTime(null);
+            }
+        });
     };
 
     const appendAuditLog = (message: string) => setAuditLogs(prev => [message, ...prev]);
@@ -259,6 +281,18 @@ function Game() {
         min = Math.ceil(min);
         max = Math.floor(max);
         return Math.floor(Math.random() * (max - min + 1)) + min;
+    };
+
+    const getBlockTimeLeft = () => {
+        const endTime = blockEndTime();
+        if (endTime === null) return null;
+
+        const now = new Date();
+        const end = new Date(endTime);
+        if (now >= end) return null;
+
+        const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60));
+        return `${diff} ${minuty(diff)}`;
     };
 
     const randomPlaceholder = () => {
@@ -329,7 +363,16 @@ function Game() {
                             </div>
                         )}
                     </div>
-                    
+
+                    {isBlocked() &&
+                        <div class="mb-4 p-3 mx-3 bg-red-900/50 rounded-lg">
+                            <p class="text-red-200">
+                                Hráč {whoBlockedPlayer()} tě zablokoval!
+                                {getBlockTimeLeft()}
+                                {getBlockTimeLeft() && ` Musíš počkat ještě ${getBlockTimeLeft()}`}
+                            </p>
+                        </div>}
+
                     <div class="rounded-xl bg-zinc-900 p-3 my-5 mx-4 flex flex-col overflow-x-scroll">
                         <table class="w-full text-left">
                             <tbody>
@@ -352,13 +395,24 @@ function Game() {
                         </table>
                     </div>
 
-                    <div class='flex flex-col mt-6'>
-                        <h2 class='font-bold text-center'>UPGRADY a AKCE</h2>
-                        <PerfapUpgrade count={count()} perfap={perFap()} socket={socket()} />
-                        <DevkyUpgrade count={count()} mileny={devky()} socket={socket()} />
-                    </div>
+                    {isBlocked() ? <div>
+                        <p>jsi zablokovaný :(</p>
+                    </div> :
+                        <div class='flex flex-col mt-6'>
+                            <h2 class='font-bold text-center'>UPGRADY a AKCE</h2>
+                            <PerfapUpgrade count={count()} perfap={perFap()} socket={socket()} />
+                            <DevkyUpgrade count={count()} mileny={devky()} socket={socket()} />
+                            <CockblockUpgrade
+                                socket={socket()}
+                                users={leaderboard()}
+                                isBlocked={isBlocked()}
+                                whoBlockedPlayer={whoBlockedPlayer()}
+                                nextBlockingAvailable={nextBlockingAvailable()}
+                                blockEndTime={blockEndTime()}
+                            />
+                        </div>}
 
-                    {isAdmin() && <AdminPanel socket={socket()} currentEvent={currentEvent} auditLogs={auditLogs} /> }
+                    {isAdmin() && <AdminPanel socket={socket()} currentEvent={currentEvent} auditLogs={auditLogs} />}
                 </div>
             )}
         </div>

@@ -13,6 +13,17 @@ interface Storage {
     currentEvent: GameEvent | null;
 }
 
+interface BlockSettings {
+    blockDuration: number;
+    cooldownDuration: number;
+}
+
+let blockSettings: BlockSettings = {
+    blockDuration: 1,
+    cooldownDuration: 5
+};
+
+
 const PORT = 8080;
 const MAX_AUDIT_LOGS = 100;
 
@@ -24,6 +35,10 @@ const defaultUser: User = {
     isLive: false,
     isAdmin: false,
     devky: 0,
+    isBlocked: false,
+    whoBlockedPlayer: '',
+    nextBlockingAvailable: null,
+    blockEndTime: null,
 };
 
 const generateGameToken = (length: number): string => {
@@ -53,6 +68,10 @@ const ensureUserFields = (user: Partial<User>): User => ({
     isAdmin: user.isAdmin || defaultUser.isAdmin,
     perfap: user.perfap || defaultUser.perfap,
     devky: user.devky || defaultUser.devky,
+    isBlocked: user.isBlocked || defaultUser.isBlocked,
+    whoBlockedPlayer: user.whoBlockedPlayer || defaultUser.whoBlockedPlayer,
+    nextBlockingAvailable: user.nextBlockingAvailable || defaultUser.nextBlockingAvailable,
+    blockEndTime: user.blockEndTime || defaultUser.blockEndTime,
 });
 
 const checkEventStatus = () => {
@@ -171,9 +190,9 @@ setInterval(() => {
     })
 }, 30000);
 
-setInterval(checkEventStatus, 5000);
+setInterval(checkEventStatus, 20000);
 setInterval(() => updateLeaderboard(), 5000);
-setInterval(() => saveStorage(users, currentEvent), 5000);
+setInterval(() => saveStorage(users, currentEvent), 60000);
 
 io.on('connection', (socket) => {
     const gameToken = socket.handshake.auth.gameToken || `User-${socket.id}`;
@@ -207,6 +226,21 @@ io.on('connection', (socket) => {
     user.isLive = true;
     updateLeaderboard();
 
+    const checkBlockExpiry = () => {
+        const now = new Date();
+        if (user.isBlocked && user.blockEndTime && now >= new Date(user.blockEndTime)) {
+            console.log(`unblocking ${user.name}`)
+            user.isBlocked = false;
+            user.whoBlockedPlayer = '';
+            user.blockEndTime = null;
+            socket.emit('user_data', user);
+            addAuditLog(`${user.name}'s block has expired`, 'SYSTEM');
+        }
+    }
+
+    setInterval(() => checkBlockExpiry(), 5000);
+    checkBlockExpiry();
+
     if (user.isAdmin) {
         socket.emit('audit_log_history', auditLogs);
     }
@@ -234,11 +268,11 @@ io.on('connection', (socket) => {
         if (user.score >= upgradeCost) {
             user.score -= upgradeCost;
             user.perfap *= 2;
-            
+
             socket.emit('user_data', user);
             socket.emit('count', user.score);
             addAuditLog(`${user.name} upgraded their PerFap to ${user.perfap}`, 'SYSTEM');
-            
+
             saveStorage(users, currentEvent);
             updateLeaderboard();
         }
@@ -250,14 +284,37 @@ io.on('connection', (socket) => {
         if (user.score >= upgradeCost) {
             user.score -= upgradeCost;
             user.devky += 1;
-            
+
             socket.emit('user_data', user);
             socket.emit('count', user.score);
             addAuditLog(`${user.name} bought a milena (now has ${user.devky})`, 'SYSTEM');
-            
+
             saveStorage(users, currentEvent);
             updateLeaderboard();
         }
+    });
+
+    socket.on('block_user', (targetUsername: string) => {
+        const target = Array.from(users.values()).find(u => u.name === targetUsername);
+        if (!target || !user || user.isBlocked || target.isBlocked) return;
+
+        if (targetUsername == user.name)
+            return;
+
+        const now = new Date();
+        if (user.nextBlockingAvailable && now < user.nextBlockingAvailable) return;
+
+        target.isBlocked = true;
+        target.whoBlockedPlayer = user.name;
+        target.blockEndTime = new Date(now.getTime() + blockSettings.blockDuration * 60000);
+
+        user.nextBlockingAvailable = new Date(now.getTime() + blockSettings.cooldownDuration * 60000);
+
+        addAuditLog(`${user.name} blocked ${target.name} for ${blockSettings.blockDuration} minutes`, 'SYSTEM');
+        io.emit('user_blocked', { blocker: user.name, blocked: target.name });
+        socket.emit('user_data', user);
+
+        saveStorage(users, currentEvent);
     });
 
     socket.on('disconnect', () => {
@@ -374,7 +431,7 @@ io.on('connection', (socket) => {
             return;
         }
 
-        console.log({event});
+        console.log({ event });
 
         currentEvent = {
             ...event,
@@ -425,6 +482,48 @@ io.on('connection', (socket) => {
         currentEvent = null;
         io.emit('event_ended', eventTitle);
         addAuditLog(`Cancelled event "${eventTitle}"`, user.name);
+        saveStorage(users, currentEvent);
+    });
+
+    socket.on('update_block_settings', (settings: BlockSettings) => {
+        if (!user.isAdmin) return;
+
+        blockSettings = settings;
+        addAuditLog(
+            `Updated block settings: duration=${settings.blockDuration}min, cooldown=${settings.cooldownDuration}min`,
+            user.name
+        );
+    });
+
+    socket.on('admin_block_user', (username: string) => {
+        if (!user.isAdmin) return;
+
+        const target = Array.from(users.values()).find(u => u.name === username);
+        if (!target) return;
+
+        target.isBlocked = true;
+        target.whoBlockedPlayer = 'Admin';
+        target.blockEndTime = new Date(Date.now() + blockSettings.blockDuration * 60000);
+
+        addAuditLog(`Admin ${user.name} blocked ${target.name}`, 'SYSTEM');
+        io.emit('user_blocked', { blocker: 'Admin', blocked: target.name });
+
+        saveStorage(users, currentEvent);
+    });
+
+    socket.on('admin_unblock_user', (username: string) => {
+        if (!user.isAdmin) return;
+
+        const target = Array.from(users.values()).find(u => u.name === username);
+        if (!target) return;
+
+        target.isBlocked = false;
+        target.whoBlockedPlayer = '';
+        target.blockEndTime = null;
+
+        addAuditLog(`Admin ${user.name} unblocked ${target.name}`, 'SYSTEM');
+        io.emit('user_unblocked', target.name);
+
         saveStorage(users, currentEvent);
     });
 });

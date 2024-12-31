@@ -191,6 +191,64 @@ const AdminPanel: Component<AdminPanelProps> = (props) => {
                 <button onclick={toggleAdminStatus}> toggle admin status </button>
             </div>
 
+            <h2 class='mt-6'>COCKBLOCK SETTINGS</h2>
+            <div class='flex-col'>
+                <div class="mb-4">
+                    <label>Block Duration (minutes)</label>
+                    <input
+                        type="number"
+                        id="block-duration"
+                        min="1"
+                        class="w-full"
+                        placeholder="Block duration in minutes"
+                    />
+                </div>
+                <div class="mb-4">
+                    <label>Cooldown Duration (minutes)</label>
+                    <input
+                        type="number"
+                        id="block-cooldown"
+                        min="1"
+                        class="w-full"
+                        placeholder="Cooldown duration in minutes"
+                    />
+                </div>
+                <button onClick={() => {
+                    const duration = (document.querySelector('#block-duration') as HTMLInputElement).value;
+                    const cooldown = (document.querySelector('#block-cooldown') as HTMLInputElement).value;
+                    if (duration && cooldown && props.socket) {
+                        props.socket.emit('update_block_settings', {
+                            blockDuration: parseInt(duration),
+                            cooldownDuration: parseInt(cooldown)
+                        });
+                    }
+                }}>Update Settings</button>
+            </div>
+
+            <h2 class='mt-6'>MANUAL BLOCK/UNBLOCK</h2>
+            <div class='flex-col'>
+                <input
+                    type="text"
+                    id="block-user-input"
+                    placeholder="Username to block/unblock"
+                    class="mb-2"
+                />
+                <div class="flex gap-2">
+                    <button onClick={() => {
+                        const username = (document.querySelector('#block-user-input') as HTMLInputElement).value;
+                        if (username && props.socket) {
+                            props.socket.emit('admin_block_user', username);
+                        }
+                    }}>Block User</button>
+                    <button onClick={() => {
+                        const username = (document.querySelector('#block-user-input') as HTMLInputElement).value;
+                        if (username && props.socket) {
+                            props.socket.emit('admin_unblock_user', username);
+                        }
+                    }}>Unblock User</button>
+                </div>
+            </div>
+
             < h2 > EVENT MANAGEMENT </h2>
             {
                 !props.currentEvent() && (

@@ -6,6 +6,10 @@ export interface User {
     isLive: boolean;
     isAdmin: boolean;
     devky: number;
+    isBlocked: boolean;
+    whoBlockedPlayer: string;
+    nextBlockingAvailable: Date | null;
+    blockEndTime: Date | null;
 }
 
 export interface GameEvent {

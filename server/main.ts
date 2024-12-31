@@ -184,11 +184,11 @@ const updateLeaderboard = () => {
 setInterval(() => {
     Array.from(users.entries()).forEach(e => {
         const user = e[1];
-        if (user.devky > 0) {
+        if (user.devky > 0 && !user.isBlocked) {
             user.score += currentEvent ? user.devky * user.perfap * currentEvent.multiplier : user.devky * user.perfap;
         }
     })
-}, 30000);
+}, 15000);
 
 setInterval(checkEventStatus, 20000);
 setInterval(() => updateLeaderboard(), 5000);
@@ -250,6 +250,8 @@ io.on('connection', (socket) => {
     }
 
     socket.on('fap', () => {
+        if (user.isBlocked) return;
+
         const scoreIncrease = currentEvent ? user.perfap * currentEvent.multiplier : user.perfap;
 
         if (Number.isNaN(scoreIncrease)) {

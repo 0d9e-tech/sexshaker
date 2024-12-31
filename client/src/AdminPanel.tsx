@@ -88,7 +88,7 @@ const AdminPanel: Component<AdminPanelProps> = (props) => {
             title: titleInput.value,
             description: descInput.value,
             eventEnd: endInput.value,
-            multiplier: parseInt(multiplierInput.value)
+            multiplier: parseFloat(multiplierInput.value)
         };
 
         if (confirm(`Are you sure you want to start event "${event.title}"?`)) {
@@ -114,7 +114,7 @@ const AdminPanel: Component<AdminPanelProps> = (props) => {
             title: titleInput.value,
             description: descInput.value,
             eventEnd: endInput.value,
-            multiplier: parseInt(multiplierInput.value)
+            multiplier: parseFloat(multiplierInput.value)
         };
 
         if (confirm(`Are you sure you want to edit event "${props.currentEvent()?.title}" to "${event.title}"?`)) {

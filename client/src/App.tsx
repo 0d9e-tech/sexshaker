@@ -4,7 +4,7 @@ import { DefaultEventsMap } from '@socket.io/component-emitter';
 import { GameEvent, type User } from '../../types';
 import CodeInput from './CodeInput';
 import PerfapUpgrade from './PerfapUpgrade';
-import { minuty, toText } from '../../functions';
+import { toText } from '../../functions';
 import AdminPanel from './AdminPanel';
 import DevkyUpgrade from './DevkyUpgrade';
 import CockblockUpgrade from './CockBlockUpgrade';
@@ -31,8 +31,8 @@ export function App() {
     } else {
         return (
             <div class='bg-zinc-800 w-full min-h-screen flex flex-col gap-4 justify-center items-center text-center'>
-                <p class='text-slate-300 text-4xl'>Your browser does not support motion detection.</p>
-                <p class='text-slate-300 text-4xl'>Use your mobile device.</p>
+                <p class='text-slate-300 text-4xl'>Tvůj prohlížeč nepodporuje akcelerometr! Použij své mobilní zařízení.</p>
+                <p class='text-slate-300 text-4xl'>Na androidu prosím použij Google Chrome.</p>
             </div>
         );
     }
@@ -55,12 +55,13 @@ function Game() {
     const [auditLogs, setAuditLogs] = createSignal<string[]>([]);
     const [motionPermission, setMotionPermission] = createSignal<boolean>(false);
     const [currentEvent, setCurrentEvent] = createSignal<GameEvent | null>(null);
-    const [timeLeft, setTimeLeft] = createSignal<string>('');
+    const [eventTimeLeft, setEventTimeLeft] = createSignal<string>('');
     const [devky, setDevky] = createSignal(0);
     const [isBlocked, setIsBlocked] = createSignal(false);
     const [whoBlockedPlayer, setWhoBlockedPlayer] = createSignal('');
     const [nextBlockingAvailable, setNextBlockingAvailable] = createSignal<Date | null>(null);
     const [blockEndTime, setBlockEndTime] = createSignal<Date | null>(null);
+    const [isShaking, setIsShaking] = createSignal(false);
 
     let newSocket: Socket<DefaultEventsMap, DefaultEventsMap>;
 
@@ -90,18 +91,16 @@ function Game() {
     };
 
     const initializeMotionTracking = () => {
-        let isShaking = false;
-
         if (!isIOS()) {
             try {
                 const accelerometer = new Accelerometer({ frequency: 60 });
 
                 accelerometer.addEventListener('reading', () => {
-                    if (accelerometer.y !== undefined && !isShaking && accelerometer.y > ANDROID_THRESHOLD) {
-                        isShaking = true;
+                    if (accelerometer.y !== undefined && !isShaking() && accelerometer.y > ANDROID_THRESHOLD) {
+                        setIsShaking(true);
                         fap();
-                    } else if (accelerometer.y !== undefined && isShaking && accelerometer.y < ANDROID_THRESHOLD) {
-                        isShaking = false;
+                    } else if (accelerometer.y !== undefined && isShaking() && accelerometer.y < ANDROID_THRESHOLD) {
+                        setIsShaking(false);
                     }
                 });
 
@@ -116,11 +115,11 @@ function Game() {
                 const handleMotion = (event: DeviceMotionEvent) => {
                     const acceleration = event.accelerationIncludingGravity;
                     if (acceleration && acceleration.y !== null) {
-                        if (!isShaking && acceleration.y > IOS_THRESHOLD) {
-                            isShaking = true;
+                        if (!isShaking() && acceleration.y > IOS_THRESHOLD) {
+                            setIsShaking(true);
                             fap();
-                        } else if (isShaking && acceleration.y < IOS_THRESHOLD) {
-                            isShaking = false;
+                        } else if (isShaking() && acceleration.y < IOS_THRESHOLD) {
+                            setIsShaking(false);
                         }
                     }
                 };
@@ -135,11 +134,11 @@ function Game() {
             const handleMotion = (event: DeviceMotionEvent) => {
                 const acceleration = event.accelerationIncludingGravity;
                 if (acceleration && acceleration.y !== null) {
-                    if (!isShaking && acceleration.y > IOS_THRESHOLD) {
-                        isShaking = true;
+                    if (!isShaking() && acceleration.y > IOS_THRESHOLD) {
+                        setIsShaking(true);
                         fap();
-                    } else if (isShaking && acceleration.y < IOS_THRESHOLD) {
-                        isShaking = false;
+                    } else if (isShaking() && acceleration.y < IOS_THRESHOLD) {
+                        setIsShaking(false);
                     }
                 }
             };
@@ -152,20 +151,7 @@ function Game() {
         }
     };
 
-    const preventShakeToUndo = () => {
-        if (isIOS()) {
-            window.addEventListener('shake', (e) => {
-                e.preventDefault();
-            }, true);
-
-            // Also prevent the motion event that triggers shake
-            window.addEventListener('motion', (e) => {
-                e.preventDefault();
-            }, true);
-        }
-    };
-
-    const updateTimeLeft = () => {
+    const updateEventTimeLeft = () => {
         const event = currentEvent();
         if (!event) return;
 
@@ -175,7 +161,7 @@ function Game() {
 
         if (diff <= 0) {
             setCurrentEvent(null);
-            setTimeLeft('');
+            setEventTimeLeft('');
             return;
         }
 
@@ -183,13 +169,18 @@ function Game() {
         if (minutes >= 60) {
             const hours = Math.floor(minutes / 60);
             const remainingMinutes = minutes % 60;
-            setTimeLeft(`${hours}h ${remainingMinutes}min`);
+            setEventTimeLeft(`${hours}h ${remainingMinutes}min`);
         } else {
-            setTimeLeft(`${minutes}min`);
+            setEventTimeLeft(`${minutes}min`);
         }
     };
 
-    const fap = () => newSocket.emit('fap');
+    const fap = () => {
+        if (isBlocked())
+            return;
+
+        newSocket.emit('fap');
+    }
 
     const connectSocket = (gameToken: string) => {
         newSocket = io(import.meta.env.VITE_SOCKET_URL, {
@@ -233,12 +224,12 @@ function Game() {
 
         newSocket.on('event_update', (event: GameEvent) => {
             setCurrentEvent(event);
-            updateTimeLeft();
+            updateEventTimeLeft();
         });
 
         newSocket.on('event_ended', (_) => {
             setCurrentEvent(null);
-            setTimeLeft('');
+            setEventTimeLeft('');
         });
 
         newSocket.on('user_blocked', (data: { blocker: string, blocked: string }) => {
@@ -283,18 +274,6 @@ function Game() {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     };
 
-    const getBlockTimeLeft = () => {
-        const endTime = blockEndTime();
-        if (endTime === null) return null;
-
-        const now = new Date();
-        const end = new Date(endTime);
-        if (now >= end) return null;
-
-        const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60));
-        return `${diff} ${minuty(diff)}`;
-    };
-
     const randomPlaceholder = () => {
         const placeholders = [
             "tvojemama",
@@ -314,8 +293,7 @@ function Game() {
 
     let timeInterval: number;
     onMount(() => {
-        timeInterval = setInterval(updateTimeLeft, 1000);
-        preventShakeToUndo();
+        timeInterval = setInterval(updateEventTimeLeft, 1000);
     });
 
     onCleanup(() => {
@@ -352,13 +330,13 @@ function Game() {
                         )}
                     </details>
                     <div class="mx-auto mt-5">
-                        <p class="text-center text-6xl">{toText(count())}</p>
+                        <p class={`text-center text-6xl p-4 ${isShaking() && !isBlocked() && 'border-4 rounded-2xl border-green-500'}`}>{toText(count())}</p>
                         {currentEvent() && (
                             <div class="mt-4 p-4 bg-zinc-700 rounded-xl text-center">
                                 <h3 class="text-xl font-bold">{currentEvent()?.title}</h3>
                                 <p class="mt-2">{currentEvent()?.description}</p>
                                 <p class="mt-2 text-sm text-center">
-                                    Zbývá: {timeLeft()}
+                                    Zbývá: {eventTimeLeft()}
                                 </p>
                             </div>
                         )}
@@ -367,9 +345,7 @@ function Game() {
                     {isBlocked() &&
                         <div class="mb-4 p-3 mx-3 bg-red-900/50 rounded-lg">
                             <p class="text-red-200">
-                                Hráč {whoBlockedPlayer()} tě zablokoval!
-                                {getBlockTimeLeft()}
-                                {getBlockTimeLeft() && ` Musíš počkat ještě ${getBlockTimeLeft()}`}
+                                Hráč <span class='font-bold text-lg'>{whoBlockedPlayer()}</span> tě zablokoval! Musíš teď chvilku počkat :(
                             </p>
                         </div>}
 
@@ -381,7 +357,7 @@ function Game() {
                                         <td class="p-2 text-center w-6">{index + 1}</td>
                                         <td class="py-2 pl-4 text-center w-3">
                                             <span
-                                                class={`inline-block w-3 h-3 rounded-full ${user.isLive ? 'bg-green-500' : 'bg-gray-500'}`}
+                                                class={`inline-block w-3 h-3 rounded-full ${user.isBlocked ? 'bg-red-500' : user.isLive ? 'bg-green-500' : 'bg-gray-500'}`}
                                                 aria-label={user.isLive ? 'Online' : 'Offline'}
                                             ></span>
                                         </td>
@@ -396,10 +372,10 @@ function Game() {
                     </div>
 
                     {isBlocked() ? <div>
-                        <p>jsi zablokovaný :(</p>
-                    </div> :
+                            <h2 class='font-bold text-center'>KDYŽ JSI ZABLOKOVANÝ, NENÍ SEXSHOP DOSTUPNÝ</h2>
+                        </div> :
                         <div class='flex flex-col mt-6'>
-                            <h2 class='font-bold text-center'>UPGRADY a AKCE</h2>
+                            <h2 class='font-bold text-center'>SEXSHOP</h2>
                             <PerfapUpgrade count={count()} perfap={perFap()} socket={socket()} />
                             <DevkyUpgrade count={count()} mileny={devky()} socket={socket()} />
                             <CockblockUpgrade

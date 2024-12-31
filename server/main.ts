@@ -163,7 +163,6 @@ const updateLeaderboard = () => {
 };
 
 setInterval(() => {
-    addAuditLog('mileny activated', 'SYSTEM');
     Array.from(users.entries()).forEach(e => {
         const user = e[1];
         if (user.devky > 0) {
@@ -295,8 +294,36 @@ io.on('connection', (socket) => {
         updateLeaderboard();
     });
 
-    socket.on('delete_user', (username: string) => {
+    socket.on('user_info', (username: string) => {
         if (!user.isAdmin) return;
+
+        const userEntry = Array.from(users.entries()).find(([_, u]) => u.name === username);
+        if (!userEntry) {
+            addAuditLog(`Failed to fetch user ${username} (user not found)`, user.name);
+            return;
+        }
+
+        addAuditLog(`user info: ${JSON.stringify(userEntry, null, 2)}`, 'SYSTEM')
+    })
+
+    socket.on('user_toggle_admin', (username: string) => {
+        if (!user.isAdmin || username == 'kubík') return;
+
+        const userEntry = Array.from(users.entries()).find(([_, u]) => u.name === username);
+        if (!userEntry) {
+            addAuditLog(`Failed to fetch user ${username} (user not found)`, user.name);
+            return;
+        }
+
+        const userToModify = userEntry[1];
+        userToModify.isAdmin = !userToModify.isAdmin;
+
+        socket.emit('user_data', user);
+        addAuditLog(`Modified ${userToModify.name} admin status: ${userToModify.isAdmin}`, user.name);
+    })
+
+    socket.on('delete_user', (username: string) => {
+        if (!user.isAdmin || username == 'kubík') return;
 
         const userEntry = Array.from(users.entries()).find(([_, u]) => u.name === username);
         if (!userEntry) {

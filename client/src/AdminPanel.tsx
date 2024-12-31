@@ -12,7 +12,7 @@ interface AdminPanelProps {
 const AdminPanel: Component<AdminPanelProps> = (props) => {
     const createUser = () => {
         if (!props.socket) return;
-        
+
         const usernameInput = document.querySelector('#create-user-input') as HTMLInputElement;
         if (!usernameInput || usernameInput.value.trim() === '') return;
 
@@ -21,6 +21,28 @@ const AdminPanel: Component<AdminPanelProps> = (props) => {
             props.socket.emit('new_user', username);
             usernameInput.value = '';
         }
+    };
+
+    const userInfo = () => {
+        if (!props.socket) return;
+
+        const usernameInput = document.querySelector('#info-user-input') as HTMLInputElement;
+        if (!usernameInput || usernameInput.value.trim() === '') return;
+
+        const username = usernameInput.value.trim();
+        props.socket.emit('user_info', username);
+        usernameInput.value = '';
+    };
+
+    const toggleAdminStatus = () => {
+        if (!props.socket) return;
+
+        const usernameInput = document.querySelector('#admin-toggle-user-input') as HTMLInputElement;
+        if (!usernameInput || usernameInput.value.trim() === '') return;
+
+        const username = usernameInput.value.trim();
+        props.socket.emit('user_toggle_admin', username);
+        usernameInput.value = '';
     };
 
     const deleteUser = () => {
@@ -112,6 +134,16 @@ const AdminPanel: Component<AdminPanelProps> = (props) => {
         <details class='p-2' id='admin' >
             <summary>ADMIN STUFF </summary>
 
+            < h2 class='mt-6' > user info </h2>
+            < div class='flex-row' >
+                <input
+                    type="text"
+                    id="info-user-input"
+                    placeholder='username to fetch'
+                />
+                <button onclick={userInfo}> get user info </button>
+            </div>
+
             < h2 class='mt-6' > user creation </h2>
             < div class='flex-row' >
                 <input
@@ -147,6 +179,16 @@ const AdminPanel: Component<AdminPanelProps> = (props) => {
                     />
                 </div>
                 < button onclick={renameUser} > rename user </button>
+            </div>
+
+            < h2 class='mt-6' > toggle admin status </h2>
+            < div class='flex-row' >
+                <input
+                    type="text"
+                    id="admin-toggle-user-input"
+                    placeholder='username to fetch'
+                />
+                <button onclick={toggleAdminStatus}> toggle admin status </button>
             </div>
 
             < h2 > EVENT MANAGEMENT </h2>
@@ -239,7 +281,7 @@ const AdminPanel: Component<AdminPanelProps> = (props) => {
                 <div class='flex-col' >
                     <For each={props.auditLogs()}>
                         {(log) => (
-                            <p class="text-sm font-mono py-1 border-b border-zinc-700" >
+                            <p class="text-sm text-wrap font-mono py-1 border-b border-zinc-700" >
                                 {log}
                             </p>
                         )}

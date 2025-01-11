@@ -9,6 +9,18 @@ export const calculateMilenaUpgradeCost = (currentMilena: number): number => {
     return upgraded;
 }
 
+export const calculateHentaiUpgradeCost = (currentHentai: number): number => {
+    currentHentai += 1;
+    const upgraded = Math.ceil(
+        currentHentai * Math.log2(currentHentai) * 25000 + 50000
+    );
+    return upgraded;
+};
+
+export const calculateHentaiMultiplier = (hentai: number): number => {
+    return 1 + hentai / 20;
+};
+
 export const minuty = (n: number) => {
     if (n == 1)
         return 'minutu';
@@ -19,9 +31,6 @@ export const minuty = (n: number) => {
 }
 
 export const toText = (n: number) => {
-    if (n < 100)
-        return n;
-
     n = Math.floor(n);
 
     if (n < 9_000)
@@ -44,9 +53,9 @@ export async function wakeLock(run: boolean = true) {
     // Příprava jestli teda budeme dělat settings
     if (!run) return;
     try {
-      const wakeLock = await navigator.wakeLock.request("screen");
+        const wakeLock = await navigator.wakeLock.request("screen");
     } catch (err) {
-      const error = err as any;
-      console.log(`${error.name}, ${error.message}`);
+        const error = err as any;
+        console.log(`${error.name}, ${error.message}`);
     }
-  }
+}

@@ -3,7 +3,7 @@ import { createServer } from 'https';
 import { createServer as createHttpServer } from 'http';
 import { readFileSync } from 'fs';
 import { type GameEvent, type User } from '../types';
-import { calculateMilenaUpgradeCost, calculatePerFapUpgradeCost } from '../functions';
+import { calculateHentaiMultiplier, calculateHentaiUpgradeCost, calculateMilenaUpgradeCost, calculatePerFapUpgradeCost } from '../functions';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -35,6 +35,7 @@ const defaultUser: User = {
     isLive: false,
     isAdmin: false,
     devky: 0,
+    hentai: 0,
     isBlocked: false,
     whoBlockedPlayer: '',
     nextBlockingAvailable: null,
@@ -68,6 +69,7 @@ const ensureUserFields = (user: Partial<User>): User => ({
     isAdmin: user.isAdmin || defaultUser.isAdmin,
     perfap: user.perfap || defaultUser.perfap,
     devky: user.devky || defaultUser.devky,
+    hentai: user.hentai || defaultUser.hentai,
     isBlocked: user.isBlocked || defaultUser.isBlocked,
     whoBlockedPlayer: user.whoBlockedPlayer || defaultUser.whoBlockedPlayer,
     nextBlockingAvailable: user.nextBlockingAvailable || defaultUser.nextBlockingAvailable,
@@ -185,10 +187,18 @@ setInterval(() => {
     Array.from(users.entries()).forEach(e => {
         const user = e[1];
         if (user.devky > 0 && !user.isBlocked) {
-            user.score += currentEvent ? user.devky * user.perfap * currentEvent.multiplier : user.devky * user.perfap;
+            user.score += currentEvent
+                ? user.devky *
+                user.perfap *
+                currentEvent.multiplier *
+                calculateHentaiMultiplier(user.hentai)
+                : user.devky * user.perfap * calculateHentaiMultiplier(user.hentai);
+            //Miluju floating point aritmetiku
+            user.score = Math.floor(user.score * 100) / 100;
         }
-    })
-}, 15000);
+    });
+}, 60000);
+
 
 setInterval(checkEventStatus, 20000);
 setInterval(() => updateLeaderboard(), 5000);
@@ -293,6 +303,19 @@ io.on('connection', (socket) => {
 
             saveStorage(users, currentEvent);
             updateLeaderboard();
+        }
+    });
+
+    socket.on('upgrade_hentai', () => {
+        const upgradeCost = calculateHentaiUpgradeCost(user.hentai);
+
+        if (user.score >= upgradeCost) {
+            user.score -= upgradeCost;
+            user.hentai += 1;
+
+            socket.emit('user_data', user);
+            socket.emit('count', user.score);
+            addAuditLog(`${user.name} bought hentai (now has ${user.hentai})`, 'SYSTEM');
         }
     });
 

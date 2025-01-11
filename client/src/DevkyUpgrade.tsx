@@ -5,13 +5,13 @@ import { calculateMilenaUpgradeCost, toText } from '../../functions';
 import upgradeImg from './public/milena.png';
 
 
-interface PerfapUpgradeProps {
+interface DevkyUpgradeProps {
     count: number;
     mileny: number;
     socket: Socket<DefaultEventsMap, DefaultEventsMap> | undefined;
 }
 
-const DevkyUpgrade: Component<PerfapUpgradeProps> = (props) => {
+const DevkyUpgrade: Component<DevkyUpgradeProps> = (props) => {
     const handleUpgrade = () => {
         if (!props.socket) return;
         props.socket.emit('upgrade_milena');
@@ -22,13 +22,17 @@ const DevkyUpgrade: Component<PerfapUpgradeProps> = (props) => {
             <img src={upgradeImg} alt="upgrade image" />
             <div>
                 <h2>MILENA</h2>
-                <p>Nadržená starší žena tě pravidelně každou půlminutu pohoní. Už máš {props.mileny}.</p>
+                <p>
+                    Nadržená starší češtinářka tě pravidelně každou minutu pohoní.
+                    <br />
+                    Už máš {props.mileny}.
+                </p>
                 <button
                     onClick={handleUpgrade}
                     disabled={props.count < calculateMilenaUpgradeCost(props.mileny) || !props.socket}
                     class={`px-4 py-2 rounded-lg ${props.count >= calculateMilenaUpgradeCost(props.mileny) && props.socket
-                            ? 'bg-green-600 hover:bg-green-700 font-bold'
-                            : 'bg-gray-600 cursor-not-allowed'
+                        ? 'bg-green-600 hover:bg-green-700 font-bold'
+                        : 'bg-gray-600 cursor-not-allowed'
                         }`}
                 >
                     Koupit Milenu za {toText(calculateMilenaUpgradeCost(props.mileny))}

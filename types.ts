@@ -6,6 +6,7 @@ export interface User {
     isLive: boolean;
     isAdmin: boolean;
     devky: number;
+    hentai: number;
     isBlocked: boolean;
     whoBlockedPlayer: string;
     nextBlockingAvailable: Date | null;

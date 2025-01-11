@@ -8,6 +8,7 @@ import { toText, wakeLock } from '../../functions';
 import AdminPanel from './AdminPanel';
 import DevkyUpgrade from './DevkyUpgrade';
 import CockblockUpgrade from './CockBlockUpgrade';
+import HentaiUpgrade from './HentaiUpgrade';
 
 const isIOS = () => {
     return [
@@ -57,6 +58,7 @@ function Game() {
     const [currentEvent, setCurrentEvent] = createSignal<GameEvent | null>(null);
     const [eventTimeLeft, setEventTimeLeft] = createSignal<string>('');
     const [devky, setDevky] = createSignal(0);
+    const [hentai, setHentai] = createSignal(0);
     const [isBlocked, setIsBlocked] = createSignal(false);
     const [whoBlockedPlayer, setWhoBlockedPlayer] = createSignal('');
     const [nextBlockingAvailable, setNextBlockingAvailable] = createSignal<Date | null>(null);
@@ -203,6 +205,7 @@ function Game() {
             setFaps(user.faps);
             setIsBlocked(user.isBlocked)
             setDevky(user.devky);
+            setHentai(user.hentai);
             setNextBlockingAvailable(user.nextBlockingAvailable);
             setLoginError('');
             localStorage.setItem('gameToken', gameToken);
@@ -374,12 +377,13 @@ function Game() {
                     </div>
 
                     {isBlocked() ? <div>
-                            <h2 class='font-bold text-center'>KDYŽ JSI ZABLOKOVANÝ, NENÍ SEXSHOP DOSTUPNÝ</h2>
-                        </div> :
+                        <h2 class='font-bold text-center'>KDYŽ JSI ZABLOKOVANÝ, NENÍ SEXSHOP DOSTUPNÝ</h2>
+                    </div> :
                         <div class='flex flex-col mt-6'>
                             <h2 class='font-bold text-center'>SEXSHOP</h2>
                             <PerfapUpgrade count={count()} perfap={perFap()} socket={socket()} />
                             <DevkyUpgrade count={count()} mileny={devky()} socket={socket()} />
+                            <HentaiUpgrade count={count()} hentai={hentai()} socket={socket()} />
                             <CockblockUpgrade
                                 socket={socket()}
                                 users={leaderboard()}

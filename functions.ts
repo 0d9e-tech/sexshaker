@@ -39,3 +39,14 @@ export const toText = (n: number) => {
     else
         return 'kurva hodně';
 }
+
+export async function wakeLock(run: boolean = true) {
+    // Příprava jestli teda budeme dělat settings
+    if (!run) return;
+    try {
+      const wakeLock = await navigator.wakeLock.request("screen");
+    } catch (err) {
+      const error = err as any;
+      console.log(`${error.name}, ${error.message}`);
+    }
+  }

@@ -4,7 +4,7 @@ import { DefaultEventsMap } from '@socket.io/component-emitter';
 import { GameEvent, type User } from '../../types';
 import CodeInput from './CodeInput';
 import PerfapUpgrade from './PerfapUpgrade';
-import { toText } from '../../functions';
+import { toText, wakeLock } from '../../functions';
 import AdminPanel from './AdminPanel';
 import DevkyUpgrade from './DevkyUpgrade';
 import CockblockUpgrade from './CockBlockUpgrade';
@@ -299,6 +299,8 @@ function Game() {
     onCleanup(() => {
         clearInterval(timeInterval);
     });
+
+    wakeLock();
 
     return (
         <div class="bg-zinc-800 w-full min-h-screen flex flex-col text-slate-300">

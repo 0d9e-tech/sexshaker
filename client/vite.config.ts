@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => ({
             },
         },
         https: mode === 'development',
+        host: true,
     },
     build: {
         outDir: 'dist',
